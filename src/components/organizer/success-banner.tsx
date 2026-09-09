@@ -6,6 +6,7 @@ const MESSAGES: Record<string, string> = {
   regenerated: "URLを再発行しました。以前のURLは無効になりました。",
   invited: "招待メールを送信しました。",
   processed: "送信処理を実行しました。",
+  invoice_resent: "請求書を再送しました。",
 };
 
 function resolveMessage(done: string, count?: string): string {

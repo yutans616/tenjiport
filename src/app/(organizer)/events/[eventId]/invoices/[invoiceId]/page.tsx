@@ -1,19 +1,23 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
-import { markInvoicePaid, markInvoiceUnpaid, updateInvoiceDetails } from "../actions";
+import { markInvoicePaid, markInvoiceUnpaid, resendInvoiceReminderAction, updateInvoiceDetails } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SuccessBanner } from "@/components/organizer/success-banner";
 
 export default async function InvoiceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string; invoiceId: string }>;
+  searchParams: Promise<{ done?: string }>;
 }) {
   const { eventId, invoiceId } = await params;
+  const { done } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
@@ -54,6 +58,7 @@ export default async function InvoiceDetailPage({
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6">
+      <SuccessBanner done={done} />
       <div>
         <h1 className="text-xl font-semibold tracking-tight">{profile?.brand_name ?? "（未設定）"}</h1>
         <p className="text-sm text-muted-foreground">{profile?.company_name}</p>
@@ -72,6 +77,14 @@ export default async function InvoiceDetailPage({
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {invoice.payment_status === "unpaid" && (
+            <form action={resendInvoiceReminderAction.bind(null, eventId, invoiceId)}>
+              <Button type="submit" variant="outline" size="sm" className="self-start">
+                請求書を再送する
+              </Button>
+            </form>
+          )}
+
           {invoice.invoice_file_id && (
             <a
               href={`/api/files/${invoice.invoice_file_id}`}

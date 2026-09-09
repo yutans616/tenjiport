@@ -6,6 +6,7 @@ const TEMPLATE_SUBJECT: Record<string, string> = {
   announcement_publish: "資料が公開されました",
   announcement_resend: "【再送】ご確認をお願いします",
   invoice_publish: "請求書が届いています",
+  invoice_reminder: "【再送】請求書のご確認をお願いします",
   revision_request: "入力内容の修正をお願いします",
 };
 

@@ -82,6 +82,17 @@ export async function createInvoice(eventId: string, formData: FormData) {
   redirect(`/events/${eventId}/invoices/${invoice.id}`);
 }
 
+export async function resendInvoiceReminderAction(eventId: string, invoiceId: string) {
+  const { supabase } = await requireOrganizerEvent(eventId);
+
+  const { error } = await supabase.rpc("resend_invoice_reminder", { p_invoice_id: invoiceId });
+  if (error) throw new Error(`再請求に失敗しました: ${error.message}`);
+
+  await processPendingNotifications(50);
+  revalidatePath(`/events/${eventId}/invoices/${invoiceId}`);
+  redirect(`/events/${eventId}/invoices/${invoiceId}?done=invoice_resent`);
+}
+
 export async function updateInvoiceDetails(eventId: string, invoiceId: string, formData: FormData) {
   const { supabase } = await requireOrganizerEvent(eventId);
 
