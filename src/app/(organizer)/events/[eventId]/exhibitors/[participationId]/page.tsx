@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
-import { addUsageCorrectionAction, confirmSubmissionAction, requestRevisionAction } from "./actions";
+import { addUsageCorrectionAction, cancelRevisionRequestAction, confirmSubmissionAction, requestRevisionAction } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -199,9 +199,18 @@ export default async function ExhibitorDetailPage({
           )}
 
           {latest.status === "revision_requested" && (
-            <p className="text-xs text-muted-foreground">
-              修正依頼を送信済みのため、出展者からの再提出をお待ちください。再提出されると、ここから改めて修正を依頼できます。
-            </p>
+            <Card>
+              <CardContent className="flex items-center justify-between gap-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  修正依頼を送信済みのため、出展者からの再提出をお待ちください。再提出されると、ここから改めて修正を依頼できます。取り消すと提出済みの状態に戻ります（送信済みの通知メール自体は取り消せません）。
+                </p>
+                <form action={cancelRevisionRequestAction.bind(null, eventId, participationId, latest.id)}>
+                  <Button type="submit" variant="outline" size="sm" className="shrink-0">
+                    修正依頼を取り消す
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           )}
 
           {revisionRequests && revisionRequests.length > 0 && (

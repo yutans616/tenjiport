@@ -82,6 +82,7 @@ export default async function ApplyFormPage({
         .from("revision_requests")
         .select("comment")
         .eq("submission_version_id", previousVersion.id)
+        .is("resolved_at", null)
         .order("requested_at", { ascending: false })
         .limit(1)
         .maybeSingle();
