@@ -1,0 +1,78 @@
+import { notFound, redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getOrganizerContext } from "@/lib/organizer/context";
+import { updateEvent } from "../actions";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+
+export default async function EventDetailPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
+  const { eventId } = await params;
+  const context = await getOrganizerContext();
+  if (!context) redirect("/onboard");
+
+  const supabase = await createClient();
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, name, status, venue, start_date, end_date")
+    .eq("id", eventId)
+    .eq("organizer_organization_id", context!.organizationId)
+    .single();
+
+  if (!event) notFound();
+
+  const updateEventWithId = updateEvent.bind(null, event.id);
+
+  return (
+    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">概要</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form action={updateEventWithId} className="flex flex-col gap-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="name">イベント名</Label>
+              <Input id="name" name="name" required defaultValue={event.name} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="venue">会場</Label>
+              <Input id="venue" name="venue" defaultValue={event.venue ?? ""} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="start_date">開始日</Label>
+                <Input id="start_date" type="date" name="start_date" defaultValue={event.start_date ?? ""} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="end_date">終了日</Label>
+                <Input id="end_date" type="date" name="end_date" defaultValue={event.end_date ?? ""} />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="status">状態</Label>
+              <NativeSelect id="status" name="status" defaultValue={event.status}>
+                <option value="draft">下書き</option>
+                <option value="open">公開中</option>
+                <option value="closed">終了</option>
+                <option value="archived">アーカイブ</option>
+              </NativeSelect>
+              <p className="text-xs text-muted-foreground">
+                「公開中」にすると、フォーム公開URLから出展者が入力できるようになります。
+              </p>
+            </div>
+            <Button type="submit" className="self-start">
+              保存する
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

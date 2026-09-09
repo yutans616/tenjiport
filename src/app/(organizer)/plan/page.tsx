@@ -1,0 +1,250 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getOrganizerContext } from "@/lib/organizer/context";
+import {
+  changeToAnnualPlanAction,
+  changeToStandardPlanAction,
+  generateInvoiceNowAction,
+  startAnnualPlanAction,
+  startStandardPlanAction,
+} from "./actions";
+import { startCardRegistration } from "./stripe-actions";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+type AnnualPlanUsageRow = {
+  service_contract_id: string;
+  annual_fee_yen: number;
+  participant_cap_per_event: number;
+  event_count_cap: number | null;
+  events_used_count: number;
+  event_id: string;
+  event_name: string;
+  event_billable_count: number;
+  is_over_participant_cap: boolean;
+};
+
+export default async function PlanPage() {
+  const context = await getOrganizerContext();
+  if (!context) redirect("/onboard");
+
+  const supabase = await createClient();
+
+  const { data: contract } = await supabase
+    .from("service_contracts")
+    .select("id, plan_type, status, payment_method_status, started_at, pricing_config_id, annual_plan_config_id")
+    .eq("organizer_organization_id", context.organizationId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!contract) {
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
+        <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
+        <p className="text-sm text-muted-foreground">
+          現在、有効な契約はありません。イベント数・出展者数の見込みに応じてプランをお選びください。
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">通常プラン</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">出展者数に応じた従量課金。30社まで9,800円、以降1社300円（テスト価格）。</p>
+              <form action={startStandardPlanAction}>
+                <Button type="submit">通常プランを開始する</Button>
+              </form>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">年間プラン</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">大規模主催者向け年間固定料金。従量課金は発生しません（テスト価格）。</p>
+              <form action={startAnnualPlanAction}>
+                <Button type="submit" variant="outline">
+                  年間プランを開始する
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+        <p className="text-xs text-muted-foreground">※価格は未確定のためテスト設定値です。本番課金は価格確定後に反映します。</p>
+      </div>
+    );
+  }
+
+  if (contract.plan_type === "annual") {
+    const { data: annualConfig } = await supabase
+      .from("annual_plan_configs")
+      .select("annual_fee_yen, participant_cap_per_event, event_count_cap, cap_definition_note")
+      .eq("id", contract.annual_plan_config_id)
+      .single();
+    const { data: usage } = await supabase.rpc("get_annual_plan_usage", { p_org_id: context.organizationId });
+    const usageRows = (usage as AnnualPlanUsageRow[] | null) ?? [];
+    const overCapEvents = usageRows.filter((u) => u.is_over_participant_cap);
+    const eventsUsedCount = usageRows[0]?.events_used_count ?? 0;
+
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
+        <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">年間プラン</CardTitle>
+            <Badge>契約中</Badge>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <dl className="flex flex-col gap-2 text-sm">
+              <div className="flex justify-between border-b py-1.5">
+                <dt className="text-muted-foreground">年額</dt>
+                <dd>¥{(annualConfig?.annual_fee_yen ?? 0).toLocaleString("ja-JP")}</dd>
+              </div>
+              <div className="flex justify-between border-b py-1.5">
+                <dt className="text-muted-foreground">1開催あたりの上限</dt>
+                <dd>{annualConfig?.participant_cap_per_event ?? "-"}社</dd>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <dt className="text-muted-foreground">年間開催数</dt>
+                <dd>
+                  {eventsUsedCount}開催
+                  {annualConfig?.event_count_cap ? ` / 上限${annualConfig.event_count_cap}開催` : "（上限なし）"}
+                </dd>
+              </div>
+            </dl>
+            <p className="text-xs text-muted-foreground">
+              従量課金は発生しません。上限を超えても出展者の入力・提出は継続できます。
+            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-muted-foreground">
+                カード登録: {contract.payment_method_status === "valid" ? "登録済み" : "未登録"}
+              </p>
+              {contract.payment_method_status !== "valid" && (
+                <form action={startCardRegistration}>
+                  <Button type="submit" size="sm" variant="outline">
+                    カードを登録する
+                  </Button>
+                </form>
+              )}
+            </div>
+            <form action={changeToStandardPlanAction}>
+              <Button type="submit" variant="ghost" size="sm" className="self-start text-muted-foreground">
+                通常プランに切り替える
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {overCapEvents.length > 0 && (
+          <Card className="border-destructive/40">
+            <CardHeader>
+              <CardTitle className="text-base text-destructive">上限を超えているイベントがあります</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              <p className="text-sm text-muted-foreground">
+                出展者の入力・提出は引き続き可能です。上位プランへの変更をご検討ください。
+              </p>
+              {overCapEvents.map((e) => (
+                <p key={e.event_id} className="text-sm">
+                  {e.event_name} — {e.event_billable_count}社（上限{annualConfig?.participant_cap_per_event}社）
+                </p>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  const { data: billing } = await supabase.rpc("calculate_current_billing", { p_org_id: context.organizationId });
+  const estimate = billing?.[0];
+
+  const { data: invoices } = await supabase
+    .from("service_invoices")
+    .select("id, billing_period_start, billing_period_end, total_amount_yen, status, created_at")
+    .eq("service_contract_id", contract.id)
+    .order("created_at", { ascending: false });
+
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
+      <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">通常プラン</CardTitle>
+          <div className="flex gap-2">
+            <Badge>契約中</Badge>
+            {estimate?.is_test && <Badge variant="outline">テスト価格</Badge>}
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <dl className="flex flex-col gap-2 text-sm">
+            <div className="flex justify-between border-b py-1.5">
+              <dt className="text-muted-foreground">現在の課金対象出展者数</dt>
+              <dd>{estimate?.billable_count ?? 0}社</dd>
+            </div>
+            <div className="flex justify-between border-b py-1.5">
+              <dt className="text-muted-foreground">基本料金（{estimate?.included_participants ?? 30}社まで）</dt>
+              <dd>¥{(estimate?.base_fee_yen ?? 0).toLocaleString("ja-JP")}</dd>
+            </div>
+            <div className="flex justify-between border-b py-1.5">
+              <dt className="text-muted-foreground">
+                超過分（{estimate?.overage_count ?? 0}社 × ¥{estimate?.overage_unit_yen ?? 0}）
+              </dt>
+              <dd>¥{Number(estimate?.overage_amount_yen ?? 0).toLocaleString("ja-JP")}</dd>
+            </div>
+            <div className="flex justify-between py-1.5 font-medium">
+              <dt>今期の見込み金額（未請求ぶん）</dt>
+              <dd>¥{Number(estimate?.total_amount_yen ?? 0).toLocaleString("ja-JP")}</dd>
+            </div>
+          </dl>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground">
+              カード登録: {contract.payment_method_status === "valid" ? "登録済み" : "未登録"}
+            </p>
+            {contract.payment_method_status !== "valid" && (
+              <form action={startCardRegistration}>
+                <Button type="submit" size="sm" variant="outline">
+                  カードを登録する
+                </Button>
+              </form>
+            )}
+          </div>
+          <form action={generateInvoiceNowAction.bind(null, contract.id)}>
+            <Button type="submit" variant="outline" className="self-start">
+              今すぐ請求を確定する（開発用）
+            </Button>
+          </form>
+          <form action={changeToAnnualPlanAction}>
+            <Button type="submit" variant="ghost" size="sm" className="self-start text-muted-foreground">
+              年間プランに切り替える
+            </Button>
+          </form>
+          <p className="text-xs text-muted-foreground">
+            ※自動課金の実行（確定した請求へのカード請求）は今後の対応です。現時点では金額計算・カード登録までを行います。
+          </p>
+        </CardContent>
+      </Card>
+
+      {invoices && invoices.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">請求履歴</h2>
+          {invoices.map((inv) => (
+            <Card key={inv.id}>
+              <CardContent className="flex items-center justify-between py-3 text-sm">
+                <span className="text-muted-foreground">
+                  {new Date(inv.billing_period_start).toLocaleDateString("ja-JP")} 〜{" "}
+                  {new Date(inv.billing_period_end).toLocaleDateString("ja-JP")}
+                </span>
+                <span className="font-medium">¥{inv.total_amount_yen.toLocaleString("ja-JP")}</span>
+                <Badge variant="outline">{inv.status}</Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
