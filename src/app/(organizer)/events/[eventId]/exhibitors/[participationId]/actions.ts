@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
+import { processPendingNotifications } from "@/lib/notifications/processPendingNotifications";
 
 export async function requestRevisionAction(
   eventId: string,
@@ -25,6 +26,7 @@ export async function requestRevisionAction(
   });
   if (error) throw new Error(`修正依頼の送信に失敗しました: ${error.message}`);
 
+  await processPendingNotifications(50);
   revalidatePath(`/events/${eventId}/exhibitors/${participationId}`);
 }
 

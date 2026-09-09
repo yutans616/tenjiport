@@ -6,6 +6,7 @@ const TEMPLATE_SUBJECT: Record<string, string> = {
   announcement_publish: "資料が公開されました",
   announcement_resend: "【再送】ご確認をお願いします",
   invoice_publish: "請求書が届いています",
+  revision_request: "入力内容の修正をお願いします",
 };
 
 export type ProcessResult = { deliveryId: string; ok: boolean; detail: string };
@@ -50,16 +51,19 @@ export async function processPendingNotifications(limit = 20): Promise<ProcessRe
       const nextPath =
         item.related_entity_type === "exhibitor_invoice"
           ? `/apply/${item.public_form_token}/invoices/${item.related_entity_id}`
-          : `/apply/${item.public_form_token}/announcements/${item.related_entity_id}`;
+          : item.related_entity_type === "revision_request"
+            ? `/apply/${item.public_form_token}/form`
+            : `/apply/${item.public_form_token}/announcements/${item.related_entity_id}`;
       const link = await createExhibitorAccessLink(item.recipient_email, nextPath);
       const subject = TEMPLATE_SUBJECT[item.template_type] ?? "お知らせ";
 
       const { data: sendResult, error: sendError } = await resend.emails.send({
         from: fromEmail,
         to: item.recipient_email,
-        subject: `${subject}: ${item.announcement_title ?? ""}`,
+        subject: item.announcement_title ? `${subject}: ${item.announcement_title}` : subject,
         html: `
-          <p>${item.announcement_title ?? ""}</p>
+          ${item.announcement_title ? `<p>${item.announcement_title}</p>` : ""}
+          ${item.announcement_body ? `<p>${item.announcement_body}</p>` : ""}
           <p>下記リンクから内容をご確認ください。</p>
           <p><a href="${link}">${link}</a></p>
           <p>このリンクは一定時間で無効になります。</p>

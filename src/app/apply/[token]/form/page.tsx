@@ -69,12 +69,38 @@ export default async function ApplyFormPage({
 
   const draft = draftRows[0];
 
+  let pendingRevisionComment: string | null = null;
+  if (draft.version_number > 1) {
+    const { data: previousVersion } = await supabase
+      .from("submission_versions")
+      .select("id")
+      .eq("event_participation_id", draft.participation_id)
+      .eq("version_number", draft.version_number - 1)
+      .maybeSingle();
+    if (previousVersion) {
+      const { data: revisionRow } = await supabase
+        .from("revision_requests")
+        .select("comment")
+        .eq("submission_version_id", previousVersion.id)
+        .order("requested_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      pendingRevisionComment = revisionRow?.comment ?? null;
+    }
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-1 flex-col gap-6 p-4 py-10">
       <div>
         <p className="text-xs font-medium text-muted-foreground">{event.name}</p>
         <h1 className="text-lg font-semibold tracking-tight">出展者情報入力</h1>
       </div>
+      {pendingRevisionComment && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-400">
+          <p className="font-medium">主催者より修正のご依頼が届いています</p>
+          <p className="mt-1 whitespace-pre-wrap">{pendingRevisionComment}</p>
+        </div>
+      )}
       <SubmissionForm
         submissionVersionId={draft.submission_version_id}
         sections={sections ?? []}
