@@ -2,14 +2,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
-import { inviteMemberAction, removeMemberAction, revokeInvitationAction, updateMemberRoleAction } from "./actions";
-import { Button } from "@/components/ui/button";
+import { removeMemberAction, revokeInvitationAction, updateMemberRoleAction } from "./actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { NativeSelect } from "@/components/ui/native-select";
 import { SuccessBanner } from "@/components/organizer/success-banner";
+import { InviteMemberForm } from "./InviteMemberForm";
+import { MemberActionButton } from "./MemberActionButton";
 
 const ROLE_LABEL: Record<string, string> = { owner: "オーナー", admin: "管理者", staff: "スタッフ" };
 
@@ -68,22 +66,7 @@ export default async function TeamPage({
             <CardTitle className="text-base">メンバーを招待</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={inviteMemberAction} className="flex flex-col gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="email">メールアドレス</Label>
-                <Input id="email" type="email" name="email" required />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="role">ロール</Label>
-                <NativeSelect id="role" name="role" defaultValue="staff">
-                  <option value="admin">管理者（課金・チーム管理以外は全操作可）</option>
-                  <option value="staff">スタッフ（課金・チーム管理以外は全操作可）</option>
-                </NativeSelect>
-              </div>
-              <Button type="submit" className="self-start">
-                招待メールを送信
-              </Button>
-            </form>
+            <InviteMemberForm />
           </CardContent>
         </Card>
       )}
@@ -103,16 +86,16 @@ export default async function TeamPage({
                 <Badge variant={m.role === "owner" ? "default" : "secondary"}>{ROLE_LABEL[m.role] ?? m.role}</Badge>
                 {canManage && m.user_id !== context.userId && m.role !== "owner" && (
                   <>
-                    <form action={updateMemberRoleAction.bind(null, m.id, m.role === "admin" ? "staff" : "admin")}>
-                      <Button type="submit" variant="outline" size="sm">
-                        {m.role === "admin" ? "スタッフにする" : "管理者にする"}
-                      </Button>
-                    </form>
-                    <form action={removeMemberAction.bind(null, m.id, m.role)}>
-                      <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
-                        削除
-                      </Button>
-                    </form>
+                    <MemberActionButton
+                      action={updateMemberRoleAction.bind(null, m.id, m.role === "admin" ? "staff" : "admin")}
+                      label={m.role === "admin" ? "スタッフにする" : "管理者にする"}
+                    />
+                    <MemberActionButton
+                      action={removeMemberAction.bind(null, m.id, m.role)}
+                      label="削除"
+                      variant="ghost"
+                      destructive
+                    />
                   </>
                 )}
               </div>
@@ -134,11 +117,12 @@ export default async function TeamPage({
                     {new Date(inv.expires_at).toLocaleDateString("ja-JP")}まで有効）
                   </p>
                 </div>
-                <form action={revokeInvitationAction.bind(null, inv.id)}>
-                  <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
-                    取り消す
-                  </Button>
-                </form>
+                <MemberActionButton
+                  action={revokeInvitationAction.bind(null, inv.id)}
+                  label="取り消す"
+                  variant="ghost"
+                  destructive
+                />
               </CardContent>
             </Card>
           ))}

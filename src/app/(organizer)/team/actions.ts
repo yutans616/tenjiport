@@ -4,25 +4,28 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { getOrganizerContext } from "@/lib/organizer/context";
+import { getOrganizerContext, type OrganizerContext } from "@/lib/organizer/context";
 import { createResendClient } from "@/lib/resend";
 
-async function requireTeamManager() {
+export type TeamActionResult = { ok: true } | { ok: false; error: string };
+
+async function requireTeamManager(): Promise<OrganizerContext | { ok: false; error: string }> {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
   if (context.role !== "owner" && context.role !== "admin") {
-    throw new Error("この操作を行う権限がありません。");
+    return { ok: false, error: "この操作を行う権限がありません。" };
   }
   return context;
 }
 
-export async function inviteMemberAction(formData: FormData) {
+export async function inviteMemberAction(formData: FormData): Promise<TeamActionResult> {
   const context = await requireTeamManager();
+  if ("ok" in context) return context;
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = String(formData.get("role") ?? "staff");
-  if (!email) throw new Error("メールアドレスを入力してください。");
-  if (role !== "admin" && role !== "staff") throw new Error("不正なロールです。");
+  if (!email) return { ok: false, error: "メールアドレスを入力してください。" };
+  if (role !== "admin" && role !== "staff") return { ok: false, error: "不正なロールです。" };
 
   const supabase = await createClient();
   const { data: invitation, error: invitationError } = await supabase
@@ -31,7 +34,7 @@ export async function inviteMemberAction(formData: FormData) {
     .select("token")
     .single();
   if (invitationError || !invitation) {
-    throw new Error(`招待の作成に失敗しました: ${invitationError?.message}`);
+    return { ok: false, error: `招待の作成に失敗しました: ${invitationError?.message}` };
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -64,7 +67,7 @@ export async function inviteMemberAction(formData: FormData) {
       : { type: "magiclink", email, options: { redirectTo: `${appUrl}${nextPath}` } },
   );
   if (linkError || !linkData?.properties?.hashed_token) {
-    throw new Error(`招待リンクの発行に失敗しました: ${linkError?.message ?? "unknown error"}`);
+    return { ok: false, error: `招待リンクの発行に失敗しました: ${linkError?.message ?? "unknown error"}` };
   }
 
   const verificationType = linkData.properties.verification_type ?? (isNewUser ? "invite" : "magiclink");
@@ -84,15 +87,16 @@ export async function inviteMemberAction(formData: FormData) {
     `,
   });
   if (sendError) {
-    throw new Error(`招待メールの送信に失敗しました: ${sendError.message}`);
+    return { ok: false, error: `招待メールの送信に失敗しました: ${sendError.message}` };
   }
 
   revalidatePath("/team");
-  redirect("/team?done=invited");
+  return { ok: true };
 }
 
-export async function revokeInvitationAction(invitationId: string) {
+export async function revokeInvitationAction(invitationId: string): Promise<TeamActionResult> {
   const context = await requireTeamManager();
+  if ("ok" in context) return context;
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -100,31 +104,44 @@ export async function revokeInvitationAction(invitationId: string) {
     .update({ status: "revoked" })
     .eq("id", invitationId)
     .eq("organization_id", context.organizationId);
-  if (error) throw new Error(`招待の取り消しに失敗しました: ${error.message}`);
+  if (error) return { ok: false, error: `招待の取り消しに失敗しました: ${error.message}` };
 
   revalidatePath("/team");
+  return { ok: true };
 }
 
-export async function updateMemberRoleAction(membershipId: string, newRole: "owner" | "admin" | "staff") {
-  await requireTeamManager();
+export async function updateMemberRoleAction(
+  membershipId: string,
+  newRole: "owner" | "admin" | "staff",
+): Promise<TeamActionResult> {
+  const context = await requireTeamManager();
+  if ("ok" in context) return context;
+
   const supabase = await createClient();
   const { error } = await supabase.rpc("update_organizer_member_role", {
     p_membership_id: membershipId,
     p_new_role: newRole,
     p_new_status: "active",
   });
-  if (error) throw new Error(`ロールの変更に失敗しました: ${error.message}`);
+  if (error) return { ok: false, error: `ロールの変更に失敗しました: ${error.message}` };
   revalidatePath("/team");
+  return { ok: true };
 }
 
-export async function removeMemberAction(membershipId: string, currentRole: "owner" | "admin" | "staff") {
-  await requireTeamManager();
+export async function removeMemberAction(
+  membershipId: string,
+  currentRole: "owner" | "admin" | "staff",
+): Promise<TeamActionResult> {
+  const context = await requireTeamManager();
+  if ("ok" in context) return context;
+
   const supabase = await createClient();
   const { error } = await supabase.rpc("update_organizer_member_role", {
     p_membership_id: membershipId,
     p_new_role: currentRole,
     p_new_status: "removed",
   });
-  if (error) throw new Error(`メンバーの削除に失敗しました: ${error.message}`);
+  if (error) return { ok: false, error: `メンバーの削除に失敗しました: ${error.message}` };
   revalidatePath("/team");
+  return { ok: true };
 }
