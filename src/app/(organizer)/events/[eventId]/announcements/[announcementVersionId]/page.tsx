@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import {
+  deleteAttachment,
   processNotificationsNowAction,
   publishAnnouncementAction,
   resendAnnouncementAction,
@@ -10,8 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AttachmentManager } from "./AttachmentManager";
 
 export default async function AnnouncementDetailPage({
   params,
@@ -92,6 +93,12 @@ export default async function AnnouncementDetailPage({
 
   const failedCount = (deliveries ?? []).filter((d) => d.status === "failed").length;
   const uploadAttachmentWithIds = uploadAttachment.bind(null, eventId, announcementVersionId);
+  const deleteAttachmentWithIds = deleteAttachment.bind(null, eventId, announcementVersionId);
+  const attachmentList = (attachments ?? []).map((att) => {
+    const file = Array.isArray(att.file_assets) ? att.file_assets[0] : att.file_assets;
+    return { id: att.id, fileId: file?.id ?? "", filename: file?.filename ?? file?.id ?? "" };
+  });
+  const canPublish = attachmentList.length > 0;
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
@@ -108,7 +115,9 @@ export default async function AnnouncementDetailPage({
           </CardTitle>
           {version.status === "draft" && (
             <form action={publishAnnouncementAction.bind(null, eventId, announcementVersionId)}>
-              <Button type="submit">公開して通知</Button>
+              <Button type="submit" disabled={!canPublish} title={canPublish ? undefined : "添付ファイルを1件以上追加してください"}>
+                公開して通知
+              </Button>
             </form>
           )}
           {version.status === "published" && (
@@ -129,6 +138,9 @@ export default async function AnnouncementDetailPage({
         <CardContent className="flex flex-col gap-3">
           <p className="whitespace-pre-wrap text-sm">{version.body}</p>
           {failedCount > 0 && <p className="text-sm text-destructive">送信失敗: {failedCount}件</p>}
+          {version.status === "draft" && !canPublish && (
+            <p className="text-xs text-muted-foreground">公開するには、下の「添付ファイル」を1件以上追加してください。</p>
+          )}
         </CardContent>
       </Card>
 
@@ -136,34 +148,13 @@ export default async function AnnouncementDetailPage({
         <CardHeader>
           <CardTitle className="text-base">添付ファイル</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {attachments && attachments.length > 0 && (
-            <ul className="flex flex-col gap-1.5 text-sm">
-              {attachments.map((att) => {
-                const file = Array.isArray(att.file_assets) ? att.file_assets[0] : att.file_assets;
-                return (
-                  <li key={att.id}>
-                    <a
-                      href={`/api/files/${file?.id}`}
-                      className="text-primary underline-offset-4 hover:underline"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {file?.filename ?? file?.id}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {version.status === "draft" && (
-            <form action={uploadAttachmentWithIds} className="flex gap-2">
-              <Input type="file" name="file" required />
-              <Button type="submit" variant="outline">
-                追加
-              </Button>
-            </form>
-          )}
+        <CardContent>
+          <AttachmentManager
+            attachments={attachmentList}
+            canEdit={version.status === "draft"}
+            uploadAction={uploadAttachmentWithIds}
+            deleteAction={deleteAttachmentWithIds}
+          />
         </CardContent>
       </Card>
 

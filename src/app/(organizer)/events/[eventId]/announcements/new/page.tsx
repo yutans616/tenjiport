@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AudienceSelector } from "./AudienceSelector";
 
 export default async function NewAnnouncementPage({
   params,
@@ -57,30 +58,12 @@ export default async function NewAnnouncementPage({
               「確認しました」の明示操作を必須にする
             </label>
 
-            <div className="grid gap-2">
-              <Label>公開対象</Label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="radio" name="audience_type" value="all" defaultChecked className="size-4" />
-                全出展者
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="radio" name="audience_type" value="individual" className="size-4" />
-                個別選択
-              </label>
-              {participations && participations.length > 0 && (
-                <div className="ml-6 flex max-h-48 flex-col gap-1.5 overflow-y-auto rounded-lg border p-3">
-                  {participations.map((p) => {
-                    const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
-                    return (
-                      <label key={p.id} className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" name="participation_ids" value={p.id} className="size-4 rounded border-input" />
-                        {profile?.brand_name ?? "（未設定）"}
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <AudienceSelector
+              participations={(participations ?? []).map((p) => {
+                const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
+                return { id: p.id, brandName: profile?.brand_name ?? "（未設定）" };
+              })}
+            />
 
             <Button type="submit" className="self-start">
               下書きを作成

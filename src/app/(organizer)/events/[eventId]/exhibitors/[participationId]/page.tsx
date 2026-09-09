@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Download } from "lucide-react";
 import Link from "next/link";
 
 function renderAnswerValue(value: unknown) {
@@ -96,10 +97,22 @@ export default async function ExhibitorDetailPage({
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{profile?.brand_name ?? "（未設定）"}</h1>
-        <p className="text-sm text-muted-foreground">{profile?.company_name}</p>
-        <p className="text-sm text-muted-foreground">{profile?.default_contact_email}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{profile?.brand_name ?? "（未設定）"}</h1>
+          <p className="text-sm text-muted-foreground">{profile?.company_name}</p>
+          <p className="text-sm text-muted-foreground">{profile?.default_contact_email}</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          render={
+            <a href={`/events/${eventId}/exhibitors/${participationId}/download`}>
+              <Download />
+              このデータをダウンロード
+            </a>
+          }
+        />
       </div>
 
       {ledgerRows && ledgerRows.length > 0 && (

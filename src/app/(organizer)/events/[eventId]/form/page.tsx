@@ -30,7 +30,11 @@ const PRESET_FIELD_OPTIONS: { key: string; label: string }[] = [
   { key: "default_contact_name", label: "担当者氏名" },
   { key: "default_contact_email", label: "担当者メールアドレス" },
   { key: "default_contact_phone", label: "担当者電話番号" },
-  { key: "website", label: "Webサイト・SNS" },
+  { key: "website", label: "Webサイト" },
+  { key: "sns_instagram", label: "Instagram" },
+  { key: "sns_facebook", label: "Facebook（Meta）" },
+  { key: "sns_x", label: "X（旧Twitter）" },
+  { key: "sns_youtube", label: "YouTube" },
 ];
 
 const FIELD_TYPE_LABEL: Record<string, string> = {

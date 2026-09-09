@@ -120,8 +120,39 @@ export async function uploadAttachment(eventId: string, announcementVersionId: s
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
 }
 
+export async function deleteAttachment(eventId: string, announcementVersionId: string, attachmentId: string) {
+  const { supabase } = await requireOrganizerEvent(eventId);
+
+  const { data: version } = await supabase
+    .from("announcement_versions")
+    .select("status")
+    .eq("id", announcementVersionId)
+    .single();
+  if (!version || version.status !== "draft") {
+    throw new Error("公開後は添付ファイルを削除できません。");
+  }
+
+  const { error } = await supabase
+    .from("announcement_attachments")
+    .delete()
+    .eq("id", attachmentId)
+    .eq("announcement_version_id", announcementVersionId);
+  if (error) throw new Error(`添付の削除に失敗しました: ${error.message}`);
+
+  revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
+}
+
 export async function publishAnnouncementAction(eventId: string, announcementVersionId: string) {
   const { supabase } = await requireOrganizerEvent(eventId);
+
+  const { count } = await supabase
+    .from("announcement_attachments")
+    .select("id", { count: "exact", head: true })
+    .eq("announcement_version_id", announcementVersionId);
+  if (!count || count === 0) {
+    throw new Error("公開する前に添付ファイルを1件以上追加してください。");
+  }
+
   const { error } = await supabase.rpc("publish_announcement", { p_announcement_version_id: announcementVersionId });
   if (error) throw new Error(`公開に失敗しました: ${error.message}`);
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);

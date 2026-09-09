@@ -69,7 +69,8 @@ export default async function ExhibitorsPage({
               <TableRow>
                 <TableHead>ブランド名</TableHead>
                 <TableHead>会社名</TableHead>
-                <TableHead className="text-right">状態</TableHead>
+                <TableHead>状態</TableHead>
+                <TableHead className="text-right">個別データ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -88,8 +89,17 @@ export default async function ExhibitorsPage({
                         {profile?.company_name}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell>
                       <Badge variant={status.variant}>{status.label}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <a
+                        href={`/events/${eventId}/exhibitors/${p.id}/download`}
+                        className="inline-flex items-center gap-1 text-sm text-primary underline-offset-4 hover:underline"
+                      >
+                        <Download className="size-3.5" />
+                        ダウンロード
+                      </a>
                     </TableCell>
                   </TableRow>
                 );

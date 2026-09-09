@@ -40,7 +40,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { data: participations } = await supabase
     .from("event_participations")
     .select(
-      "id, status, exhibitor_profiles(brand_name, company_name, website, description, default_contact_name, default_contact_email)",
+      "id, status, exhibitor_profiles(brand_name, company_name, website, sns_links, description, default_contact_name, default_contact_email)",
     )
     .eq("event_id", eventId)
     .neq("status", "merged");
@@ -58,13 +58,29 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  const header = ["ブランド名", "会社名", "Webサイト・SNS", "紹介文", "担当者氏名", "担当者メールアドレス"];
+  const header = [
+    "ブランド名",
+    "会社名",
+    "Webサイト",
+    "Instagram",
+    "Facebook（Meta）",
+    "X（旧Twitter）",
+    "YouTube",
+    "紹介文",
+    "担当者氏名",
+    "担当者メールアドレス",
+  ];
   const rows = (participations ?? []).map((p) => {
     const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
+    const sns = (profile?.sns_links as Record<string, string> | null) ?? {};
     return [
       profile?.brand_name ?? "",
       profile?.company_name ?? "",
       profile?.website ?? "",
+      sns.instagram ?? "",
+      sns.facebook ?? "",
+      sns.x ?? "",
+      sns.youtube ?? "",
       profile?.description ?? "",
       profile?.default_contact_name ?? "",
       profile?.default_contact_email ?? "",

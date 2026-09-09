@@ -173,7 +173,11 @@ const PRESET_FIELDS: Record<string, { label: string; type: string }> = {
   default_contact_name: { label: "担当者氏名", type: "short_text" },
   default_contact_email: { label: "担当者メールアドレス", type: "short_text" },
   default_contact_phone: { label: "担当者電話番号", type: "short_text" },
-  website: { label: "Webサイト・SNS", type: "short_text" },
+  website: { label: "Webサイト", type: "short_text" },
+  sns_instagram: { label: "Instagram", type: "short_text" },
+  sns_facebook: { label: "Facebook（Meta）", type: "short_text" },
+  sns_x: { label: "X（旧Twitter）", type: "short_text" },
+  sns_youtube: { label: "YouTube", type: "short_text" },
 };
 
 // ブランド共通情報の予約キーで項目を追加する（exhibitor_profilesへの自動同期対象）
