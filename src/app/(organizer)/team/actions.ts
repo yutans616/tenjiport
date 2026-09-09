@@ -28,16 +28,6 @@ export async function inviteMemberAction(formData: FormData): Promise<TeamAction
   if (role !== "admin" && role !== "staff") return { ok: false, error: "不正なロールです。" };
 
   const supabase = await createClient();
-  const { data: invitation, error: invitationError } = await supabase
-    .from("organizer_invitations")
-    .insert({ organization_id: context.organizationId, email, role, invited_by_user_id: context.userId })
-    .select("token")
-    .single();
-  if (invitationError || !invitation) {
-    return { ok: false, error: `招待の作成に失敗しました: ${invitationError?.message}` };
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const serviceClient = createServiceRoleClient();
 
   // 既存ユーザーか新規ユーザーかで発行するリンク種別を切り替える
@@ -56,6 +46,28 @@ export async function inviteMemberAction(formData: FormData): Promise<TeamAction
     page += 1;
   }
 
+  if (existingUserId) {
+    const { data: existingMembership } = await supabase
+      .from("organizer_memberships")
+      .select("status")
+      .eq("organization_id", context.organizationId)
+      .eq("user_id", existingUserId)
+      .maybeSingle();
+    if (existingMembership?.status === "active") {
+      return { ok: false, error: "このメールアドレスは既にこの組織のメンバーです。ロールの変更はメンバー一覧から行ってください。" };
+    }
+  }
+
+  const { data: invitation, error: invitationError } = await supabase
+    .from("organizer_invitations")
+    .insert({ organization_id: context.organizationId, email, role, invited_by_user_id: context.userId })
+    .select("token")
+    .single();
+  if (invitationError || !invitation) {
+    return { ok: false, error: `招待の作成に失敗しました: ${invitationError?.message}` };
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const isNewUser = !existingUserId;
   const nextPath = isNewUser
     ? `/invite/accept?token=${invitation.token}&needs_password=1`
