@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 type Shot = { src: string; width: number; height: number; alt: string };
 
 type Step = {
+  id: string;
   title: string;
   paragraphs: string[];
   shots?: Shot[];
@@ -24,7 +25,7 @@ function StepImage({ src, width, height, alt }: Shot) {
 
 function StepBlock({ step }: { step: Step }) {
   return (
-    <div className="flex flex-col gap-3 border-b pb-6 last:border-b-0 last:pb-0">
+    <div id={step.id} className="flex scroll-mt-6 flex-col gap-3 border-b pb-6 last:border-b-0 last:pb-0">
       <p className="text-sm font-semibold">{step.title}</p>
       {step.paragraphs.map((p, i) => (
         <p key={i} className="text-sm text-muted-foreground">
@@ -44,6 +45,7 @@ function StepBlock({ step }: { step: Step }) {
 
 const ORGANIZER_STEPS: Step[] = [
   {
+    id: "org-1",
     title: "1. イベントを作成する",
     paragraphs: [
       "「イベント一覧」の右上にある「+ 新規イベント作成」を押します。",
@@ -55,6 +57,7 @@ const ORGANIZER_STEPS: Step[] = [
     ],
   },
   {
+    id: "org-2",
     title: "2. イベントの状態を確認する",
     paragraphs: [
       "作成すると概要ページが開きます。上部のタブ（概要／フォーム設定／出展者一覧／資料／請求書／重複レビュー／データ出力）から各機能に移動できます。",
@@ -66,6 +69,7 @@ const ORGANIZER_STEPS: Step[] = [
     ],
   },
   {
+    id: "org-3",
     title: "3. フォームを設計して公開する",
     paragraphs: [
       "「フォーム設定」タブで、出展者への共有URLと入力フォームの項目を管理します。",
@@ -75,6 +79,7 @@ const ORGANIZER_STEPS: Step[] = [
     shots: [{ src: "/help/form-settings.jpg", width: 1485, height: 912, alt: "フォーム設定ページ" }],
   },
   {
+    id: "org-4",
     title: "4. 公開前にプレビューで確認する",
     paragraphs: [
       "「出展者としてプレビュー」を押すと、実際に出展者に表示される画面を公開前に確認できます（このプレビュー画面から入力・送信はできません）。",
@@ -82,6 +87,7 @@ const ORGANIZER_STEPS: Step[] = [
     shots: [{ src: "/help/form-preview.jpg", width: 781, height: 761, alt: "フォームプレビュー画面" }],
   },
   {
+    id: "org-5",
     title: "5. 出展者からの提出を確認する",
     paragraphs: [
       "「出展者一覧」では、提出状態・請求書・資料確認の状況を1つの表で確認できます。",
@@ -90,6 +96,7 @@ const ORGANIZER_STEPS: Step[] = [
     shots: [{ src: "/help/exhibitors-list.jpg", width: 1601, height: 353, alt: "出展者一覧画面" }],
   },
   {
+    id: "org-6",
     title: "6. 出展者の詳細を確認・修正依頼する",
     paragraphs: [
       "ブランド名をクリックすると詳細画面が開きます。「確認済みにする」で内容を確認済みに、「修正を依頼する」で出展者に再入力をお願いできます（例：「電話番号が間違っています。修正をお願いいたします。」）。",
@@ -101,6 +108,7 @@ const ORGANIZER_STEPS: Step[] = [
     ],
   },
   {
+    id: "org-7",
     title: "7. 資料（案内文書）を作成・公開する",
     paragraphs: [
       "「資料」タブの「+ 新規作成」から作成します。",
@@ -118,6 +126,7 @@ const ORGANIZER_STEPS: Step[] = [
     ],
   },
   {
+    id: "org-8",
     title: "8. 請求書を作成する",
     paragraphs: [
       "「請求書」タブの「+ 新規作成」から作成します。",
@@ -132,6 +141,7 @@ const ORGANIZER_STEPS: Step[] = [
     ],
   },
   {
+    id: "org-9",
     title: "9. 重複登録を確認する",
     paragraphs: [
       "「重複レビュー」タブでは、メールアドレスや社名が近い登録候補が自動的に一覧表示されます。統合してもデータは削除されず、履歴として残ります。",
@@ -139,6 +149,7 @@ const ORGANIZER_STEPS: Step[] = [
     shots: [{ src: "/help/duplicates-review.jpg", width: 1611, height: 246, alt: "重複登録レビュー画面" }],
   },
   {
+    id: "org-10",
     title: "10. データを出力する",
     paragraphs: [
       "「データ出力」タブでは、出展者一覧（全項目）のほか、電源・備品一覧／車両一覧／スタッフ一覧のようにテンプレート別に絞り込んだCSV、ブランド紹介CSV＋ロゴZIPを出力できます。非公開メモ・請求書ファイルは出力に含まれません。",
@@ -146,6 +157,7 @@ const ORGANIZER_STEPS: Step[] = [
     shots: [{ src: "/help/export-page.jpg", width: 1605, height: 562, alt: "データ出力ページ" }],
   },
   {
+    id: "org-11",
     title: "11. プラン・課金を確認する",
     paragraphs: [
       "サイドバーの「プラン・課金」では、現在の課金対象出展者数・基本料金・超過分・今期の見込み金額、請求履歴を確認できます。カード登録もここから行います。",
@@ -153,22 +165,26 @@ const ORGANIZER_STEPS: Step[] = [
     shots: [{ src: "/help/plan-page.jpg", width: 657, height: 541, alt: "プラン・課金ページ" }],
   },
   {
+    id: "org-12",
     title: "12. チームメンバーを招待する",
     paragraphs: [
       "サイドバーの「チーム管理」から、メールアドレスとロール（管理者／スタッフ）を指定してメンバーを招待できます。イベント設定担当と請求書担当が別の人の場合など、それぞれが自分のログインで作業できるようになります。",
       "招待するとメール送信直後に「招待中」欄に表示され、期限内であれば「取り消す」こともできます。",
       "現在のロールは「オーナー／管理者／スタッフ」の3段階で、課金・チーム管理を除きすべて同じ操作が可能です。機能ごとの細かい権限分けは今後の対応予定です。",
+      "招待された側の画面：メール内のリンクを開くと、招待内容（組織名・ロール）が表示されます。「組織に参加する」を押すと参加完了です（初めて利用する場合は、その場でログイン用のパスワード設定もあわせて行います）。",
     ],
     shots: [
       { src: "/help/team-page.jpg", width: 676, height: 531, alt: "チーム管理ページ" },
       { src: "/help/team-role-dropdown.jpg", width: 676, height: 517, alt: "招待時のロール選択" },
       { src: "/help/team-invite-pending.jpg", width: 641, height: 139, alt: "招待中のメンバー表示" },
+      { src: "/help/invite-accept.jpg", width: 396, height: 206, alt: "招待された側が見る参加画面" },
     ],
   },
 ];
 
 const EXHIBITOR_STEPS: Step[] = [
   {
+    id: "ex-1",
     title: "1. メールアドレスを入力する",
     paragraphs: [
       "主催者から共有されたURLを開くと、イベント名・会場・開催日とメールアドレス入力欄が表示されます。アカウント登録やパスワードは不要です。",
@@ -180,6 +196,7 @@ const EXHIBITOR_STEPS: Step[] = [
     ],
   },
   {
+    id: "ex-2",
     title: "2. フォームに入力する",
     paragraphs: [
       "メール内のリンクを開くと入力画面が表示されます。入力内容は自動保存されるため、途中で中断しても後から再開できます（画面右上に「自動保存されました」と表示されます）。",
@@ -187,6 +204,7 @@ const EXHIBITOR_STEPS: Step[] = [
     shots: [{ src: "/help/exhibitor-form-filled.jpg", width: 516, height: 936, alt: "出展者フォーム入力画面（入力例）" }],
   },
   {
+    id: "ex-3",
     title: "3. 提出する",
     paragraphs: [
       "「この内容で提出する」を押すと提出完了です。以降は「資料一覧を見る」「請求書を見る」から、自分向けに公開された情報を確認できます。",
@@ -194,6 +212,7 @@ const EXHIBITOR_STEPS: Step[] = [
     shots: [{ src: "/help/exhibitor-submit-done.jpg", width: 533, height: 398, alt: "提出完了画面" }],
   },
   {
+    id: "ex-4",
     title: "4. 資料を確認する",
     paragraphs: [
       "主催者が資料を公開すると、メールで通知が届きます。内容を確認したら「確認しました」を押してください（「確認必須」に設定されている場合、この操作をしないと未確認のままになります）。",
@@ -201,19 +220,13 @@ const EXHIBITOR_STEPS: Step[] = [
     shots: [{ src: "/help/exhibitor-announcement-view.jpg", width: 486, height: 226, alt: "出展者側の資料確認画面" }],
   },
   {
+    id: "ex-5",
     title: "5. 請求書を確認する",
     paragraphs: [
       "請求書が発行されると通知が届きます。「請求書ファイルをダウンロード」で内容を確認し、「内容を確認しました」を押します。",
       "入金確認は主催者側で行われるため、実際の入金状況はこの画面には反映されません。振込後は主催者からの確認をお待ちください。",
     ],
     shots: [{ src: "/help/invoice-detail-exhibitor.jpg", width: 493, height: 287, alt: "出展者側の請求書確認画面" }],
-  },
-  {
-    title: "6. チームに招待された場合",
-    paragraphs: [
-      "組織のメンバーとして招待された場合は、メール内のリンクを開くと招待内容（組織名・ロール）が表示されます。「組織に参加する」を押すと参加完了です（初めて利用する場合は、その場でログイン用のパスワード設定もあわせて行います）。",
-    ],
-    shots: [{ src: "/help/invite-accept.jpg", width: 396, height: 206, alt: "招待受諾画面" }],
   },
 ];
 
@@ -267,14 +280,28 @@ export default function HelpPage() {
       </div>
 
       <Card>
-        <CardContent className="flex flex-col gap-1 py-4 text-sm">
-          <a href="#organizer" className="text-primary underline-offset-4 hover:underline">
-            主催者編（イベント作成〜チーム招待まで）
-          </a>
-          <a href="#exhibitor" className="text-primary underline-offset-4 hover:underline">
-            出展者編（招待された側が見る画面）
-          </a>
-          <a href="#faq" className="text-primary underline-offset-4 hover:underline">
+        <CardContent className="flex flex-col gap-4 py-4 text-sm">
+          <div className="flex flex-col gap-1">
+            <p className="font-medium">主催者編</p>
+            <div className="ml-3 flex flex-col gap-0.5">
+              {ORGANIZER_STEPS.map((step) => (
+                <a key={step.id} href={`#${step.id}`} className="text-primary underline-offset-4 hover:underline">
+                  {step.title}
+                </a>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="font-medium">出展者編</p>
+            <div className="ml-3 flex flex-col gap-0.5">
+              {EXHIBITOR_STEPS.map((step) => (
+                <a key={step.id} href={`#${step.id}`} className="text-primary underline-offset-4 hover:underline">
+                  {step.title}
+                </a>
+              ))}
+            </div>
+          </div>
+          <a href="#faq" className="font-medium text-primary underline-offset-4 hover:underline">
             よくある質問
           </a>
         </CardContent>
