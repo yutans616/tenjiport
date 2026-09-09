@@ -20,7 +20,7 @@ export default async function ApplyFormPage({
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, name")
+    .select("id, name, status")
     .eq("public_form_token", token)
     .maybeSingle();
 
@@ -35,12 +35,12 @@ export default async function ApplyFormPage({
     .limit(1)
     .maybeSingle();
 
-  if (!form) {
+  if (!form || event.status !== "open") {
     return (
       <main className="flex min-h-screen flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
         <h1 className="text-lg font-semibold">現在、入力フォームは準備中です</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
-          主催者がフォームを公開すると入力できるようになります。
+          主催者がイベントとフォームを公開すると入力できるようになります。
         </p>
       </main>
     );

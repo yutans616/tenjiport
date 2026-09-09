@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
@@ -21,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Separator } from "@/components/ui/separator";
+import { SuccessBanner } from "@/components/organizer/success-banner";
 
 const PRESET_FIELD_OPTIONS: { key: string; label: string }[] = [
   { key: "brand_name", label: "ブランド名" },
@@ -45,10 +47,13 @@ const FIELD_TYPE_LABEL: Record<string, string> = {
 
 export default async function FormBuilderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ done?: string }>;
 }) {
   const { eventId } = await params;
+  const { done } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
@@ -83,6 +88,7 @@ export default async function FormBuilderPage({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8">
+      <SuccessBanner done={done} />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">出展者への共有URL</CardTitle>
@@ -105,10 +111,31 @@ export default async function FormBuilderPage({
                 URLを再発行(失効)
               </Button>
             </form>
+            <Button
+              type="button"
+              variant="outline"
+              render={
+                <Link href={`/events/${eventId}/form/preview`} target="_blank" rel="noopener noreferrer">
+                  出展者としてプレビュー
+                </Link>
+              }
+            />
           </div>
           <p className="text-xs text-muted-foreground">
             未公開のフォームは出展者から見えません。公開後も項目の追加・編集はできますが、既に入力を始めた出展者に影響する場合があります。
           </p>
+          <div className="rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">「イベントの状態」と「フォームの公開」の違い</p>
+            <p className="mt-1">
+              出展者がこのURLから入力できるようにするには、<strong className="text-foreground">両方</strong>
+              が必要です。
+            </p>
+            <ul className="mt-1 list-disc pl-4">
+              <li>イベントの状態を「公開中」にする（概要ページで設定）— イベント自体を募集受付中として扱うかどうか</li>
+              <li>フォームを「公開して出展者を募集する」（このページ）— この共有URLを実際に開放するかどうか</li>
+            </ul>
+            <p className="mt-1">どちらか一方でも欠けると、出展者は「現在、入力フォームは準備中です」という画面になります。</p>
+          </div>
         </CardContent>
       </Card>
 

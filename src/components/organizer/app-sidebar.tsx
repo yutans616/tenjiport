@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CalendarDays, CreditCard, LogOut } from "lucide-react";
+import Image from "next/image";
+import { CalendarDays, CreditCard, HelpCircle, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -25,9 +26,7 @@ export function AppSidebar({
     <Sidebar>
       <SidebarHeader className="px-3 py-4">
         <Link href="/events" className="flex items-center gap-2 px-1">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-            T
-          </span>
+          <Image src="/tenjiport_icon.png" alt="" width={28} height={28} className="h-7 w-7" />
           <span className="text-sm font-semibold tracking-tight">TenjiPort</span>
         </Link>
       </SidebarHeader>
@@ -52,6 +51,16 @@ export function AppSidebar({
                     <Link href="/plan">
                       <CreditCard />
                       <span>プラン・課金</span>
+                    </Link>
+                  }
+                />
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={
+                    <Link href="/help">
+                      <HelpCircle />
+                      <span>使い方・ヘルプ</span>
                     </Link>
                   }
                 />

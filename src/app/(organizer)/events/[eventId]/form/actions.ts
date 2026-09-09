@@ -228,6 +228,7 @@ export async function publishForm(eventId: string, formId: string) {
   });
 
   revalidatePath(`/events/${eventId}/form`);
+  redirect(`/events/${eventId}/form?done=published`);
 }
 
 export async function regeneratePublicToken(eventId: string) {
@@ -238,4 +239,5 @@ export async function regeneratePublicToken(eventId: string) {
     .eq("id", eventId);
   if (error) throw new Error(`URLの再発行に失敗しました: ${error.message}`);
   revalidatePath(`/events/${eventId}/form`);
+  redirect(`/events/${eventId}/form?done=regenerated`);
 }

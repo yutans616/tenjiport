@@ -91,4 +91,5 @@ export async function updateEvent(eventId: string, formData: FormData) {
 
   revalidatePath("/events");
   revalidatePath(`/events/${eventId}`);
+  redirect(`/events/${eventId}?done=saved`);
 }

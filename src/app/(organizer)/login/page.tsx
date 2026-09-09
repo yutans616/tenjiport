@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,7 +56,8 @@ function LoginForm() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/confirm?next=/onboard` },
+        // メールテンプレート側で /auth/confirm?...&next=... を組み立てるため、行き先のみを渡す。
+        options: { emailRedirectTo: `${window.location.origin}/onboard` },
       });
       if (error) {
         setErrorMessage(error.message);
@@ -76,9 +78,7 @@ function LoginForm() {
     <div className="flex min-h-screen flex-1 items-center justify-center p-4">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex items-center justify-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            T
-          </span>
+          <Image src="/tenjiport_icon.png" alt="" width={32} height={32} className="h-8 w-8" />
           <span className="text-base font-semibold tracking-tight">TenjiPort</span>
         </div>
 

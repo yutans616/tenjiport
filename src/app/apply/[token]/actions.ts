@@ -54,7 +54,9 @@ export async function requestExhibitorOtp(
   const { error } = await supabase.auth.signInWithOtp({
     email: trimmedEmail,
     options: {
-      emailRedirectTo: `${appUrl}/auth/confirm?next=${encodeURIComponent(`/apply/${token}/form`)}`,
+      // メールテンプレート側で {{ .RedirectTo }} を /auth/confirm?...&next=... に埋め込むため、
+      // ここでは行き先のプレーンなURLのみを渡す（/auth/confirm を含めるとURLが二重にネストして壊れる）。
+      emailRedirectTo: `${appUrl}/apply/${token}/form`,
     },
   });
 

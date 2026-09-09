@@ -7,13 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SuccessBanner } from "@/components/organizer/success-banner";
 
 export default async function EventDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ done?: string }>;
 }) {
   const { eventId } = await params;
+  const { done } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
@@ -31,6 +35,7 @@ export default async function EventDetailPage({
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6">
+      <SuccessBanner done={done} />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">概要</CardTitle>
@@ -57,14 +62,14 @@ export default async function EventDetailPage({
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="status">状態</Label>
-              <NativeSelect id="status" name="status" defaultValue={event.status}>
+              <NativeSelect key={event.status} id="status" name="status" defaultValue={event.status}>
                 <option value="draft">下書き</option>
                 <option value="open">公開中</option>
                 <option value="closed">終了</option>
                 <option value="archived">アーカイブ</option>
               </NativeSelect>
               <p className="text-xs text-muted-foreground">
-                「公開中」にすると、フォーム公開URLから出展者が入力できるようになります。
+                「公開中」にし、かつ「フォーム設定」ページでフォームも公開すると、出展者がフォームURLから入力できるようになります（どちらか一方だけでは入力できません）。
               </p>
             </div>
             <Button type="submit" className="self-start">
