@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
+import { MultiSelectFilter } from "./MultiSelectFilter";
 
 export type ExhibitorRow = {
   id: string;
@@ -19,6 +20,8 @@ export type ExhibitorRow = {
   announcementTotal: number;
   announcementAcked: number;
 };
+
+type AnnouncementFilterValue = "none" | "all_acked" | "has_unacked";
 
 const STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   invited: { label: "未提出", variant: "outline" },
@@ -36,6 +39,17 @@ const INVOICE_LABEL: Record<ExhibitorRow["invoiceStatus"], { label: string; vari
   paid: { label: "入金済み", variant: "secondary" },
 };
 
+const ANNOUNCEMENT_FILTER_OPTIONS: { value: AnnouncementFilterValue; label: string }[] = [
+  { value: "none", label: "対象なし" },
+  { value: "has_unacked", label: "未確認あり" },
+  { value: "all_acked", label: "全て確認済み" },
+];
+
+function announcementFilterValue(r: ExhibitorRow): AnnouncementFilterValue {
+  if (r.announcementTotal === 0) return "none";
+  return r.announcementAcked >= r.announcementTotal ? "all_acked" : "has_unacked";
+}
+
 const SORT_OPTIONS = {
   created_desc: "提出が新しい順",
   created_asc: "提出が古い順",
@@ -44,20 +58,28 @@ const SORT_OPTIONS = {
 type SortKey = keyof typeof SORT_OPTIONS;
 
 export function ExhibitorTable({ eventId, rows }: { eventId: string; rows: ExhibitorRow[] }) {
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  const [invoiceFilter, setInvoiceFilter] = useState<Set<string>>(new Set());
+  const [announcementFilter, setAnnouncementFilter] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("created_desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const statusesPresent = useMemo(() => Array.from(new Set(rows.map((r) => r.status))), [rows]);
+  const invoiceStatusesPresent = useMemo(() => Array.from(new Set(rows.map((r) => r.invoiceStatus))), [rows]);
 
   const visibleRows = useMemo(() => {
-    const filtered = statusFilter === "all" ? rows : rows.filter((r) => r.status === statusFilter);
+    const filtered = rows.filter((r) => {
+      if (statusFilter.size > 0 && !statusFilter.has(r.status)) return false;
+      if (invoiceFilter.size > 0 && !invoiceFilter.has(r.invoiceStatus)) return false;
+      if (announcementFilter.size > 0 && !announcementFilter.has(announcementFilterValue(r))) return false;
+      return true;
+    });
     const sorted = filtered.slice();
     if (sortKey === "created_desc") sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     else if (sortKey === "created_asc") sorted.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     else if (sortKey === "brand_asc") sorted.sort((a, b) => a.brandName.localeCompare(b.brandName, "ja"));
     return sorted;
-  }, [rows, statusFilter, sortKey]);
+  }, [rows, statusFilter, invoiceFilter, announcementFilter, sortKey]);
 
   const visibleIds = useMemo(() => new Set(visibleRows.map((r) => r.id)), [visibleRows]);
   const selectedVisibleCount = useMemo(
@@ -65,6 +87,7 @@ export function ExhibitorTable({ eventId, rows }: { eventId: string; rows: Exhib
     [selected, visibleIds],
   );
   const allVisibleSelected = visibleRows.length > 0 && selectedVisibleCount === visibleRows.length;
+  const activeFilterCount = statusFilter.size + invoiceFilter.size + announcementFilter.size;
 
   function toggleAll() {
     setSelected((prev) => {
@@ -98,19 +121,37 @@ export function ExhibitorTable({ eventId, rows }: { eventId: string; rows: Exhib
   return (
     <form method="post" action={`/events/${eventId}/exhibitors/bulk-download`} className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <NativeSelect
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="w-auto"
-          aria-label="状態で絞り込み"
-        >
-          <option value="all">すべての状態</option>
-          {statusesPresent.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABEL[s]?.label ?? s}
-            </option>
-          ))}
-        </NativeSelect>
+        <MultiSelectFilter
+          label="提出状態"
+          options={statusesPresent.map((s) => ({ value: s, label: STATUS_LABEL[s]?.label ?? s }))}
+          selected={statusFilter}
+          onChange={setStatusFilter}
+        />
+        <MultiSelectFilter
+          label="請求書"
+          options={invoiceStatusesPresent.map((s) => ({ value: s, label: INVOICE_LABEL[s as ExhibitorRow["invoiceStatus"]]?.label ?? s }))}
+          selected={invoiceFilter}
+          onChange={setInvoiceFilter}
+        />
+        <MultiSelectFilter
+          label="資料確認"
+          options={ANNOUNCEMENT_FILTER_OPTIONS}
+          selected={announcementFilter}
+          onChange={setAnnouncementFilter}
+        />
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(new Set());
+              setInvoiceFilter(new Set());
+              setAnnouncementFilter(new Set());
+            }}
+            className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+          >
+            絞り込みをすべて解除
+          </button>
+        )}
         <NativeSelect
           value={sortKey}
           onChange={(e) => setSortKey(e.target.value as SortKey)}
