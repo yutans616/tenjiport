@@ -1,12 +1,13 @@
-// Supabase Storageのキーに含めるファイル名から、パス区切り・制御文字・URLで
-// 特別な意味を持つ文字などキーを壊しうる文字を除去する。
+// Supabase Storageのキーに使えるのは英数字・アンダースコアと一部の記号のみで、
+// 日本語などの非ASCII文字は "Invalid key" エラーになる（S3のキー制約をSupabase側で
+// さらに厳格化しているため）。ここではキー用に安全な文字だけへ変換する。
+// 元のファイル名自体は file_assets.filename に別途保存し、表示・ダウンロード時に使う。
+const SAFE_CHAR = /[\w!\-.*'() &$@=;:+,?]/;
+
 export function sanitizeStorageFilename(filename: string): string {
   let cleaned = "";
   for (const ch of filename) {
-    const code = ch.codePointAt(0) ?? 0;
-    const isControl = code <= 0x1f || code === 0x7f;
-    const isUnsafe = isControl || ch === "/" || ch === "\\" || ch === "?" || ch === "#" || ch === "%";
-    cleaned += isUnsafe ? "_" : ch;
+    cleaned += SAFE_CHAR.test(ch) ? ch : "_";
   }
   cleaned = cleaned.trim();
   return cleaned || "file";
