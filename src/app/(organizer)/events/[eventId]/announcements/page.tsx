@@ -25,9 +25,14 @@ export default async function AnnouncementsPage({
     .single();
   if (!event) notFound();
 
+  // announcementsとannouncement_versionsの間にはFKが2本ある
+  // （versions側のannouncement_id、announcements側のcurrent_version_id）ため、
+  // 全バージョンを取得したい場合はannouncement_id経由の関係を明示する必要がある。
   const { data: announcements } = await supabase
     .from("announcements")
-    .select("id, created_at, current_version_id, announcement_versions(id, title, status, published_at, version_number)")
+    .select(
+      "id, created_at, current_version_id, announcement_versions!announcement_versions_announcement_id_fkey(id, title, status, published_at, version_number)",
+    )
     .eq("event_id", eventId)
     .order("created_at", { ascending: false });
 
