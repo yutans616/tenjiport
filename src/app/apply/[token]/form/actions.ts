@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getClientIp } from "@/lib/security/clientIp";
+import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 
 const SUBMIT_LIMIT_PER_IP = 20; // 1時間あたり
 const SUBMIT_WINDOW_SECONDS_PER_IP = 3600;
@@ -80,7 +81,10 @@ export async function uploadSubmissionFile(submissionVersionId: string, formData
     return { ok: false, error: "ファイルを選択してください。" };
   }
   if (file.size > 10 * 1024 * 1024) {
-    return { ok: false, error: "ファイルサイズは10MB以下にしてください。" };
+    return {
+      ok: false,
+      error: `ファイルサイズは10MB以下にしてください（このファイル: ${(file.size / 1024 / 1024).toFixed(1)}MB）。`,
+    };
   }
 
   // 所有権確認：このバージョンが自分の下書きであること
@@ -112,7 +116,7 @@ export async function uploadSubmissionFile(submissionVersionId: string, formData
   }
 
   const serviceClient = createServiceRoleClient();
-  const storageKey = `${event.organizer_organization_id}/${participation.event_id}/exhibitor-uploads/${version.event_participation_id}/${randomUUID()}-${file.name}`;
+  const storageKey = `${event.organizer_organization_id}/${participation.event_id}/exhibitor-uploads/${version.event_participation_id}/${randomUUID()}-${sanitizeStorageFilename(file.name)}`;
   const arrayBuffer = await file.arrayBuffer();
 
   const { error: uploadError } = await serviceClient.storage

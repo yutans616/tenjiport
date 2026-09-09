@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { processPendingNotifications } from "@/lib/notifications/processPendingNotifications";
+import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 
 async function requireOrganizerEvent(eventId: string) {
   const context = await getOrganizerContext();
@@ -70,18 +71,25 @@ export async function createAnnouncementDraft(eventId: string, formData: FormDat
   redirect(`/events/${eventId}/announcements/${version.id}`);
 }
 
-export async function uploadAttachment(eventId: string, announcementVersionId: string, formData: FormData) {
+export type UploadAttachmentResult = { ok: true } | { ok: false; error: string };
+
+export async function uploadAttachment(
+  eventId: string,
+  announcementVersionId: string,
+  formData: FormData,
+): Promise<UploadAttachmentResult> {
   const { supabase, context } = await requireOrganizerEvent(eventId);
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error("ファイルを選択してください。");
+    return { ok: false, error: "ファイルを選択してください。" };
   }
   if (file.size > 20 * 1024 * 1024) {
-    throw new Error("ファイルサイズは20MB以下にしてください。");
+    return { ok: false, error: `ファイルサイズは20MB以下にしてください（このファイル: ${(file.size / 1024 / 1024).toFixed(1)}MB）。` };
   }
 
-  const storageKey = `${context.organizationId}/${eventId}/${randomUUID()}-${file.name}`;
+  const safeFilename = sanitizeStorageFilename(file.name);
+  const storageKey = `${context.organizationId}/${eventId}/${randomUUID()}-${safeFilename}`;
   const serviceClient = createServiceRoleClient();
   const arrayBuffer = await file.arrayBuffer();
 
@@ -89,7 +97,7 @@ export async function uploadAttachment(eventId: string, announcementVersionId: s
     .from("files")
     .upload(storageKey, Buffer.from(arrayBuffer), { contentType: file.type || "application/octet-stream" });
   if (uploadError) {
-    throw new Error(`アップロードに失敗しました: ${uploadError.message}`);
+    return { ok: false, error: `アップロードに失敗しました: ${uploadError.message}` };
   }
 
   const { data: fileAsset, error: fileAssetError } = await serviceClient
@@ -107,20 +115,25 @@ export async function uploadAttachment(eventId: string, announcementVersionId: s
     .select("id")
     .single();
   if (fileAssetError || !fileAsset) {
-    throw new Error(`添付の登録に失敗しました: ${fileAssetError?.message}`);
+    return { ok: false, error: `添付の登録に失敗しました: ${fileAssetError?.message}` };
   }
 
   const { error: attachmentError } = await supabase
     .from("announcement_attachments")
     .insert({ announcement_version_id: announcementVersionId, file_asset_id: fileAsset.id });
   if (attachmentError) {
-    throw new Error(`添付の登録に失敗しました: ${attachmentError.message}`);
+    return { ok: false, error: `添付の登録に失敗しました: ${attachmentError.message}` };
   }
 
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
+  return { ok: true };
 }
 
-export async function deleteAttachment(eventId: string, announcementVersionId: string, attachmentId: string) {
+export async function deleteAttachment(
+  eventId: string,
+  announcementVersionId: string,
+  attachmentId: string,
+): Promise<UploadAttachmentResult> {
   const { supabase } = await requireOrganizerEvent(eventId);
 
   const { data: version } = await supabase
@@ -129,7 +142,7 @@ export async function deleteAttachment(eventId: string, announcementVersionId: s
     .eq("id", announcementVersionId)
     .single();
   if (!version || version.status !== "draft") {
-    throw new Error("公開後は添付ファイルを削除できません。");
+    return { ok: false, error: "公開後は添付ファイルを削除できません。" };
   }
 
   const { error } = await supabase
@@ -137,9 +150,10 @@ export async function deleteAttachment(eventId: string, announcementVersionId: s
     .delete()
     .eq("id", attachmentId)
     .eq("announcement_version_id", announcementVersionId);
-  if (error) throw new Error(`添付の削除に失敗しました: ${error.message}`);
+  if (error) return { ok: false, error: `添付の削除に失敗しました: ${error.message}` };
 
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
+  return { ok: true };
 }
 
 export async function publishAnnouncementAction(eventId: string, announcementVersionId: string) {
@@ -155,6 +169,9 @@ export async function publishAnnouncementAction(eventId: string, announcementVer
 
   const { error } = await supabase.rpc("publish_announcement", { p_announcement_version_id: announcementVersionId });
   if (error) throw new Error(`公開に失敗しました: ${error.message}`);
+
+  // 公開＝通知の期待に応えるため、キューに積むだけでなくその場で送信まで行う。
+  await processPendingNotifications(50);
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
 }
 
@@ -162,6 +179,8 @@ export async function resendAnnouncementAction(eventId: string, announcementVers
   const { supabase } = await requireOrganizerEvent(eventId);
   const { error } = await supabase.rpc("resend_announcement", { p_announcement_version_id: announcementVersionId });
   if (error) throw new Error(`再通知に失敗しました: ${error.message}`);
+
+  await processPendingNotifications(50);
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
 }
 

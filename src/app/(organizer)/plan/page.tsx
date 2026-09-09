@@ -31,6 +31,21 @@ export default async function PlanPage() {
 
   const supabase = await createClient();
 
+  const { data: org } = await supabase
+    .from("organizer_organizations")
+    .select("annual_plan_offer_config_id")
+    .eq("id", context.organizationId)
+    .single();
+  let annualOffer: { annual_fee_yen: number; participant_cap_per_event: number; event_count_cap: number | null } | null = null;
+  if (org?.annual_plan_offer_config_id) {
+    const { data } = await supabase
+      .from("annual_plan_configs")
+      .select("annual_fee_yen, participant_cap_per_event, event_count_cap")
+      .eq("id", org.annual_plan_offer_config_id)
+      .single();
+    annualOffer = data;
+  }
+
   const { data: contract } = await supabase
     .from("service_contracts")
     .select("id, plan_type, status, payment_method_status, started_at, pricing_config_id, annual_plan_config_id")
@@ -45,7 +60,7 @@ export default async function PlanPage() {
         <p className="text-sm text-muted-foreground">
           現在、有効な契約はありません。イベント数・出展者数の見込みに応じてプランをお選びください。
         </p>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={`grid gap-4 ${annualOffer ? "sm:grid-cols-2" : ""}`}>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">通常プラン</CardTitle>
@@ -57,21 +72,28 @@ export default async function PlanPage() {
               </form>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">年間プラン</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <p className="text-sm text-muted-foreground">大規模主催者向け年間固定料金。従量課金は発生しません（テスト価格）。</p>
-              <form action={startAnnualPlanAction}>
-                <Button type="submit" variant="outline">
-                  年間プランを開始する
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          {annualOffer && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">年間プラン（ご案内）</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <p className="text-sm text-muted-foreground">
+                  年額¥{annualOffer.annual_fee_yen.toLocaleString("ja-JP")}
+                  ・1開催あたり{annualOffer.participant_cap_per_event}社まで
+                  {annualOffer.event_count_cap ? `・年間${annualOffer.event_count_cap}開催まで` : "・開催数上限なし"}
+                  。従量課金は発生しません。
+                </p>
+                <form action={startAnnualPlanAction}>
+                  <Button type="submit" variant="outline">
+                    年間プランを開始する
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground">※価格は未確定のためテスト設定値です。本番課金は価格確定後に反映します。</p>
+        <p className="text-xs text-muted-foreground">※通常プランの価格は未確定のためテスト設定値です。本番課金は価格確定後に反映します。</p>
       </div>
     );
   }
@@ -217,11 +239,13 @@ export default async function PlanPage() {
               今すぐ請求を確定する（開発用）
             </Button>
           </form>
-          <form action={changeToAnnualPlanAction}>
-            <Button type="submit" variant="ghost" size="sm" className="self-start text-muted-foreground">
-              年間プランに切り替える
-            </Button>
-          </form>
+          {annualOffer && (
+            <form action={changeToAnnualPlanAction}>
+              <Button type="submit" variant="ghost" size="sm" className="self-start text-muted-foreground">
+                年間プランに切り替える（年額¥{annualOffer.annual_fee_yen.toLocaleString("ja-JP")}のご案内）
+              </Button>
+            </form>
+          )}
           <p className="text-xs text-muted-foreground">
             ※自動課金の実行（確定した請求へのカード請求）は今後の対応です。現時点では金額計算・カード登録までを行います。
           </p>

@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
+import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
+import { processPendingNotifications } from "@/lib/notifications/processPendingNotifications";
 
 async function requireOrganizerEvent(eventId: string) {
   const context = await getOrganizerContext();
@@ -35,8 +37,10 @@ export async function createInvoice(eventId: string, formData: FormData) {
 
   let invoiceFileId: string | null = null;
   if (file instanceof File && file.size > 0) {
-    if (file.size > 20 * 1024 * 1024) throw new Error("ファイルサイズは20MB以下にしてください。");
-    const storageKey = `${context.organizationId}/${eventId}/invoices/${randomUUID()}-${file.name}`;
+    if (file.size > 20 * 1024 * 1024) {
+      throw new Error(`ファイルサイズは20MB以下にしてください（このファイル: ${(file.size / 1024 / 1024).toFixed(1)}MB）。`);
+    }
+    const storageKey = `${context.organizationId}/${eventId}/invoices/${randomUUID()}-${sanitizeStorageFilename(file.name)}`;
     const serviceClient = createServiceRoleClient();
     const arrayBuffer = await file.arrayBuffer();
     const { error: uploadError } = await serviceClient.storage
@@ -70,6 +74,9 @@ export async function createInvoice(eventId: string, formData: FormData) {
     p_organizer_internal_memo: memo,
   });
   if (error) throw new Error(`請求書の作成に失敗しました: ${error.message}`);
+
+  // 請求書の発行＝通知の期待に応えるため、キューに積むだけでなくその場で送信まで行う。
+  await processPendingNotifications(50);
 
   revalidatePath(`/events/${eventId}/invoices`);
   redirect(`/events/${eventId}/invoices/${invoice.id}`);

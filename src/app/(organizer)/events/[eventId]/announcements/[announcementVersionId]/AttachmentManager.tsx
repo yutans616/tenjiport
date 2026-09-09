@@ -2,10 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Trash2, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Attachment = { id: string; fileId: string; filename: string };
+type ActionResult = { ok: true } | { ok: false; error: string };
 
 export function AttachmentManager({
   attachments,
@@ -15,18 +16,17 @@ export function AttachmentManager({
 }: {
   attachments: Attachment[];
   canEdit: boolean;
-  uploadAction: (formData: FormData) => Promise<void>;
-  deleteAction: (attachmentId: string) => Promise<void>;
+  uploadAction: (formData: FormData) => Promise<ActionResult>;
+  deleteAction: (attachmentId: string) => Promise<ActionResult>;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    if (inputRef.current) inputRef.current.value = "";
+  async function uploadFiles(files: File[]) {
     if (files.length === 0) return;
 
     setIsUploading(true);
@@ -35,27 +35,42 @@ export function AttachmentManager({
       for (const file of files) {
         const formData = new FormData();
         formData.set("file", file);
-        await uploadAction(formData);
+        const result = await uploadAction(formData);
+        if (!result.ok) {
+          setError(result.error);
+          break;
+        }
       }
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "アップロードに失敗しました。");
     } finally {
       setIsUploading(false);
     }
   }
 
+  async function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (inputRef.current) inputRef.current.value = "";
+    await uploadFiles(files);
+  }
+
+  async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDragging(false);
+    if (!canEdit || isUploading) return;
+    const files = Array.from(e.dataTransfer.files ?? []);
+    await uploadFiles(files);
+  }
+
   async function handleDelete(attachmentId: string) {
     setDeletingId(attachmentId);
     setError(null);
-    try {
-      await deleteAction(attachmentId);
+    const result = await deleteAction(attachmentId);
+    if (!result.ok) {
+      setError(result.error);
+    } else {
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "削除に失敗しました。");
-    } finally {
-      setDeletingId(null);
     }
+    setDeletingId(null);
   }
 
   return (
@@ -91,8 +106,19 @@ export function AttachmentManager({
       )}
 
       {canEdit && (
-        <div>
-          <label className="w-fit cursor-pointer">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          className={`flex flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+            isDragging ? "border-primary bg-primary/5" : "border-input"
+          }`}
+        >
+          <UploadCloud className="size-5 text-muted-foreground" />
+          <label className="cursor-pointer">
             <span className="inline-flex items-center rounded-lg border border-input px-3 py-1.5 text-sm hover:bg-muted">
               {isUploading ? "アップロード中..." : "ファイルを選択して追加"}
             </span>
@@ -105,7 +131,9 @@ export function AttachmentManager({
               disabled={isUploading}
             />
           </label>
-          <p className="mt-1 text-xs text-muted-foreground">選択すると自動的に追加されます（複数選択可）。</p>
+          <p className="text-xs text-muted-foreground">
+            選択すると自動的に追加されます（複数選択可）。ここへファイルをドラッグ＆ドロップすることもできます。
+          </p>
         </div>
       )}
 
