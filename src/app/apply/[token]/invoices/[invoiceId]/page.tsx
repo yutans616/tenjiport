@@ -25,6 +25,12 @@ export default async function ExhibitorInvoiceDetailPage({
     .single();
   if (!invoice) notFound();
 
+  let invoiceFilename: string | null = null;
+  if (invoice.invoice_file_id) {
+    const { data } = await supabase.rpc("get_accessible_file_filename", { p_file_asset_id: invoice.invoice_file_id });
+    invoiceFilename = data ?? null;
+  }
+
   const confirmWithIds = confirmInvoiceAction.bind(null, token, invoiceId);
 
   return (
@@ -57,7 +63,7 @@ export default async function ExhibitorInvoiceDetailPage({
               rel="noopener noreferrer"
               className="text-sm text-primary underline-offset-4 hover:underline"
             >
-              請求書ファイルをダウンロード
+              請求書ファイルをダウンロード{invoiceFilename ? `（${invoiceFilename}）` : ""}
             </a>
           )}
 

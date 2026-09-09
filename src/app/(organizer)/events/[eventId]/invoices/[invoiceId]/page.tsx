@@ -29,11 +29,13 @@ export default async function InvoiceDetailPage({
   const { data: invoice } = await supabase
     .from("exhibitor_invoices")
     .select(
-      "id, event_participation_id, invoice_file_id, amount_yen, due_date, invoice_ack_status, invoice_ack_at, payment_status, paid_at, organizer_internal_memo, event_participations(exhibitor_profiles(brand_name, company_name))",
+      "id, event_participation_id, invoice_file_id, amount_yen, due_date, invoice_ack_status, invoice_ack_at, payment_status, paid_at, organizer_internal_memo, event_participations(exhibitor_profiles(brand_name, company_name)), file_assets(filename)",
     )
     .eq("id", invoiceId)
     .single();
   if (!invoice) notFound();
+
+  const invoiceFile = Array.isArray(invoice.file_assets) ? invoice.file_assets[0] : invoice.file_assets;
 
   const participation = Array.isArray(invoice.event_participations)
     ? invoice.event_participations[0]
@@ -77,7 +79,7 @@ export default async function InvoiceDetailPage({
               rel="noopener noreferrer"
               className="text-sm text-primary underline-offset-4 hover:underline"
             >
-              請求書ファイルを見る
+              請求書ファイルを見る{invoiceFile?.filename ? `（${invoiceFile.filename}）` : ""}
             </a>
           )}
 
