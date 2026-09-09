@@ -13,13 +13,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AttachmentManager } from "./AttachmentManager";
+import { SuccessBanner } from "@/components/organizer/success-banner";
 
 export default async function AnnouncementDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string; announcementVersionId: string }>;
+  searchParams: Promise<{ done?: string; count?: string }>;
 }) {
   const { eventId, announcementVersionId } = await params;
+  const { done, count } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
@@ -102,6 +106,7 @@ export default async function AnnouncementDetailPage({
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
+      <SuccessBanner done={done} count={count} />
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">

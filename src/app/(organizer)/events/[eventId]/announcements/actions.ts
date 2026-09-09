@@ -177,11 +177,14 @@ export async function publishAnnouncementAction(eventId: string, announcementVer
 
 export async function resendAnnouncementAction(eventId: string, announcementVersionId: string) {
   const { supabase } = await requireOrganizerEvent(eventId);
-  const { error } = await supabase.rpc("resend_announcement", { p_announcement_version_id: announcementVersionId });
+  const { data: resentCount, error } = await supabase.rpc("resend_announcement", {
+    p_announcement_version_id: announcementVersionId,
+  });
   if (error) throw new Error(`再通知に失敗しました: ${error.message}`);
 
   await processPendingNotifications(50);
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
+  redirect(`/events/${eventId}/announcements/${announcementVersionId}?done=resent&count=${resentCount ?? 0}`);
 }
 
 // 送信待ちの通知をその場で処理する（本番ではCronが担うが、手動実行の導線としても残す）
@@ -189,4 +192,5 @@ export async function processNotificationsNowAction(eventId: string, announcemen
   await requireOrganizerEvent(eventId);
   await processPendingNotifications(50);
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
+  redirect(`/events/${eventId}/announcements/${announcementVersionId}?done=processed`);
 }
