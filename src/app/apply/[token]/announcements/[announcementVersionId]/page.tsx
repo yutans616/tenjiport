@@ -57,7 +57,7 @@ export default async function ExhibitorAnnouncementDetailPage({
                   rel="noopener noreferrer"
                   className="text-sm text-primary underline-offset-4 hover:underline"
                 >
-                  ダウンロード（{att.content_type}）
+                  ダウンロード（{att.filename ?? att.content_type}）
                 </a>
               ))}
             </div>

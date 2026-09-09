@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Separator } from "@/components/ui/separator";
 import { SuccessBanner } from "@/components/organizer/success-banner";
+import { CopyButton } from "@/components/organizer/copy-button";
 
 const PRESET_FIELD_OPTIONS: { key: string; label: string }[] = [
   { key: "brand_name", label: "ブランド名" },
@@ -105,7 +106,10 @@ export default async function FormBuilderPage({
             </span>
             {form?.published_at ? `（最終公開: ${new Date(form.published_at).toLocaleString("ja-JP")}）` : ""}
           </p>
-          <p className="break-all rounded-lg border bg-muted/40 px-3 py-2 font-mono text-sm">{publicUrl}</p>
+          <div className="flex items-center gap-2">
+            <p className="flex-1 break-all rounded-lg border bg-muted/40 px-3 py-2 font-mono text-sm">{publicUrl}</p>
+            <CopyButton text={publicUrl} />
+          </div>
           <div className="flex gap-2">
             <form action={publishFormWithIds}>
               <Button type="submit">{form?.status === "published" ? "再公開する" : "公開して出展者を募集する"}</Button>
