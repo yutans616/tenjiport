@@ -23,11 +23,14 @@ export const getOrganizerContext = cache(async (): Promise<OrganizerContext | nu
 
   if (!user) return null;
 
+  // 複数組織に所属しうるようになったため（招待機能）、最も古い所属を主として扱う。
+  // 組織切り替えUIは現時点では未対応。
   const { data: membership } = await supabase
     .from("organizer_memberships")
     .select("role, organizer_organizations(id, name)")
     .eq("user_id", user.id)
     .eq("status", "active")
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 

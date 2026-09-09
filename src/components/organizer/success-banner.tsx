@@ -4,6 +4,7 @@ const MESSAGES: Record<string, string> = {
   saved: "保存しました。",
   published: "公開しました。出展者はこの共有URLから入力できます。",
   regenerated: "URLを再発行しました。以前のURLは無効になりました。",
+  invited: "招待メールを送信しました。",
 };
 
 export function SuccessBanner({ done }: { done?: string }) {
