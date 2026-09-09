@@ -26,9 +26,9 @@ export function AppSidebar({
       <SidebarHeader className="px-3 py-4">
         <Link href="/events" className="flex items-center gap-2 px-1">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-            展
+            T
           </span>
-          <span className="text-sm font-semibold tracking-tight">出展者管理</span>
+          <span className="text-sm font-semibold tracking-tight">TenjiPort</span>
         </Link>
       </SidebarHeader>
       <SidebarContent>

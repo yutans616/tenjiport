@@ -77,9 +77,9 @@ function LoginForm() {
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex items-center justify-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            展
+            T
           </span>
-          <span className="text-base font-semibold tracking-tight">出展者情報・資料共有管理</span>
+          <span className="text-base font-semibold tracking-tight">TenjiPort</span>
         </div>
 
         <Card>

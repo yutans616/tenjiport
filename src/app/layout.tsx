@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "出展者情報・資料共有管理SaaS",
-  description: "展示会の出展者情報収集・資料共有・入金管理",
+  title: "TenjiPort（テンジポート）",
+  description: "展示会・出展者管理クラウド — 出展者情報収集・資料共有・入金管理",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
