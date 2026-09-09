@@ -1,11 +1,12 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -32,23 +33,21 @@ export function MultiSelectFilter({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button type="button" variant="outline" size="sm">
-            {label}
-            {selected.size > 0 ? `（${selected.size}）` : ""}
-            <ChevronDown className="size-3.5" />
-          </Button>
-        }
-      />
-      <DropdownMenuContent align="start" className="min-w-40 w-auto">
-        <DropdownMenuLabel>{label}で絞り込み</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {options.map((opt) => (
-          <DropdownMenuCheckboxItem key={opt.value} checked={selected.has(opt.value)} onCheckedChange={() => toggle(opt.value)}>
-            {opt.label}
-          </DropdownMenuCheckboxItem>
-        ))}
+      <DropdownMenuTrigger className={buttonVariants({ variant: "outline", size: "sm" })}>
+        {label}
+        {selected.size > 0 ? `（${selected.size}）` : ""}
+        <ChevronDown className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-48">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{label}で絞り込み</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {options.map((opt) => (
+            <DropdownMenuCheckboxItem key={opt.value} checked={selected.has(opt.value)} onCheckedChange={() => toggle(opt.value)}>
+              {opt.label}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuGroup>
         {selected.size > 0 && (
           <>
             <DropdownMenuSeparator />

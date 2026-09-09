@@ -198,6 +198,12 @@ export default async function ExhibitorDetailPage({
             </Card>
           )}
 
+          {latest.status === "revision_requested" && (
+            <p className="text-xs text-muted-foreground">
+              修正依頼を送信済みのため、出展者からの再提出をお待ちください。再提出されると、ここから改めて修正を依頼できます。
+            </p>
+          )}
+
           {revisionRequests && revisionRequests.length > 0 && (
             <div className="flex flex-col gap-2">
               <h2 className="text-sm font-semibold text-muted-foreground">修正依頼の履歴</h2>
