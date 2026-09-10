@@ -29,6 +29,7 @@ export async function createAnnouncementDraft(eventId: string, formData: FormDat
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
   const ackRequired = formData.get("ack_required") === "on";
+  const requiresSubmission = formData.get("requires_submission") === "on";
   const audienceType = String(formData.get("audience_type") ?? "all");
   const participationIds = formData.getAll("participation_ids").map(String);
 
@@ -42,7 +43,12 @@ export async function createAnnouncementDraft(eventId: string, formData: FormDat
 
   const { data: announcement, error: announcementError } = await supabase
     .from("announcements")
-    .insert({ event_id: eventId, created_by_user_id: context.userId, ack_required: ackRequired })
+    .insert({
+      event_id: eventId,
+      created_by_user_id: context.userId,
+      ack_required: ackRequired,
+      requires_submission: requiresSubmission,
+    })
     .select("id")
     .single();
   if (announcementError || !announcement) {
@@ -159,12 +165,25 @@ export async function deleteAttachment(
 export async function publishAnnouncementAction(eventId: string, announcementVersionId: string) {
   const { supabase } = await requireOrganizerEvent(eventId);
 
-  const { count } = await supabase
-    .from("announcement_attachments")
-    .select("id", { count: "exact", head: true })
-    .eq("announcement_version_id", announcementVersionId);
-  if (!count || count === 0) {
-    throw new Error("公開する前に添付ファイルを1件以上追加してください。");
+  const { data: version } = await supabase
+    .from("announcement_versions")
+    .select("announcement_id, announcements(requires_submission)")
+    .eq("id", announcementVersionId)
+    .single();
+  const announcement = version
+    ? Array.isArray(version.announcements)
+      ? version.announcements[0]
+      : version.announcements
+    : null;
+
+  if (!announcement?.requires_submission) {
+    const { count } = await supabase
+      .from("announcement_attachments")
+      .select("id", { count: "exact", head: true })
+      .eq("announcement_version_id", announcementVersionId);
+    if (!count || count === 0) {
+      throw new Error("公開する前に添付ファイルを1件以上追加してください。");
+    }
   }
 
   const { error } = await supabase.rpc("publish_announcement", { p_announcement_version_id: announcementVersionId });

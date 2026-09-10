@@ -1,10 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { acknowledgeAnnouncement } from "../actions";
+import { acknowledgeAnnouncement, deleteAnnouncementSubmission, uploadAnnouncementSubmission } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { MyAnnouncementRow } from "@/lib/notifications/types";
+import { SubmissionUploadManager } from "./SubmissionUploadManager";
 
 export default async function ExhibitorAnnouncementDetailPage({
   params,
@@ -29,7 +30,14 @@ export default async function ExhibitorAnnouncementDetailPage({
   if (!announcement) notFound();
 
   const attachments = announcement.attachments ?? [];
+  const submissions = (announcement.submissions ?? []).map((s) => ({
+    id: s.id,
+    fileId: s.file_asset_id,
+    filename: s.filename ?? s.file_asset_id,
+  }));
   const acknowledgeWithIds = acknowledgeAnnouncement.bind(null, token, announcementVersionId);
+  const uploadWithIds = uploadAnnouncementSubmission.bind(null, token, announcementVersionId);
+  const deleteWithIds = deleteAnnouncementSubmission.bind(null, token, announcementVersionId);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-1 flex-col gap-6 p-4 py-10">
@@ -60,6 +68,13 @@ export default async function ExhibitorAnnouncementDetailPage({
                   ダウンロード（{att.filename ?? att.content_type}）
                 </a>
               ))}
+            </div>
+          )}
+
+          {announcement.requires_submission && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs font-medium text-muted-foreground">提出物</p>
+              <SubmissionUploadManager submissions={submissions} uploadAction={uploadWithIds} deleteAction={deleteWithIds} />
             </div>
           )}
 

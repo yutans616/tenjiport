@@ -5,11 +5,15 @@ import { Label } from "@/components/ui/label";
 
 export function AudienceSelector({
   participations,
+  defaultParticipationId,
 }: {
   participations: { id: string; brandName: string }[];
+  defaultParticipationId?: string;
 }) {
-  const [audienceType, setAudienceType] = useState<"all" | "individual">("all");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [audienceType, setAudienceType] = useState<"all" | "individual">(defaultParticipationId ? "individual" : "all");
+  const [selected, setSelected] = useState<Set<string>>(
+    defaultParticipationId ? new Set([defaultParticipationId]) : new Set(),
+  );
 
   return (
     <div className="grid gap-2">

@@ -11,10 +11,13 @@ import { AudienceSelector } from "./AudienceSelector";
 
 export default async function NewAnnouncementPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ participationId?: string }>;
 }) {
   const { eventId } = await params;
+  const { participationId } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
@@ -57,12 +60,22 @@ export default async function NewAnnouncementPage({
               <input type="checkbox" name="ack_required" className="size-4 rounded border-input" defaultChecked />
               「確認しました」の明示操作を必須にする
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="requires_submission"
+                className="size-4 rounded border-input"
+                defaultChecked={Boolean(participationId)}
+              />
+              出展者からのファイル提出を必須にする（ロゴ・車両証・申請書類など）
+            </label>
 
             <AudienceSelector
               participations={(participations ?? []).map((p) => {
                 const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
                 return { id: p.id, brandName: profile?.brand_name ?? "（未設定）" };
               })}
+              defaultParticipationId={participationId}
             />
 
             <Button type="submit" className="self-start">

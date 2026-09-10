@@ -38,10 +38,12 @@ export default async function AnnouncementDetailPage({
 
   const { data: version } = await supabase
     .from("announcement_versions")
-    .select("id, title, body, status, version_number, published_at, announcement_id")
+    .select("id, title, body, status, version_number, published_at, announcement_id, announcements(requires_submission)")
     .eq("id", announcementVersionId)
     .single();
   if (!version) notFound();
+  const announcementMeta = Array.isArray(version.announcements) ? version.announcements[0] : version.announcements;
+  const requiresSubmission = announcementMeta?.requires_submission ?? false;
 
   const { data: attachments } = await supabase
     .from("announcement_attachments")
@@ -95,6 +97,19 @@ export default async function AnnouncementDetailPage({
     : { data: [] };
   const deliveryByParticipation = new Map((deliveries ?? []).map((d) => [d.event_participation_id, d]));
 
+  const { data: submissions } = version.status === "published"
+    ? await supabase
+        .from("announcement_submissions")
+        .select("event_participation_id, submitted_at, file_assets(filename)")
+        .eq("announcement_version_id", announcementVersionId)
+    : { data: [] };
+  const submissionByParticipation = new Map(
+    (submissions ?? []).map((s) => {
+      const file = Array.isArray(s.file_assets) ? s.file_assets[0] : s.file_assets;
+      return [s.event_participation_id, { submittedAt: s.submitted_at, filename: file?.filename ?? null }];
+    }),
+  );
+
   const failedCount = (deliveries ?? []).filter((d) => d.status === "failed").length;
   const uploadAttachmentWithIds = uploadAttachment.bind(null, eventId, announcementVersionId);
   const deleteAttachmentWithIds = deleteAttachment.bind(null, eventId, announcementVersionId);
@@ -102,7 +117,7 @@ export default async function AnnouncementDetailPage({
     const file = Array.isArray(att.file_assets) ? att.file_assets[0] : att.file_assets;
     return { id: att.id, fileId: file?.id ?? "", filename: file?.filename ?? file?.id ?? "" };
   });
-  const canPublish = attachmentList.length > 0;
+  const canPublish = requiresSubmission || attachmentList.length > 0;
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
@@ -142,6 +157,7 @@ export default async function AnnouncementDetailPage({
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="whitespace-pre-wrap text-sm">{version.body}</p>
+          {requiresSubmission && <Badge variant="outline">出展者からの提出を依頼中</Badge>}
           {failedCount > 0 && <p className="text-sm text-destructive">送信失敗: {failedCount}件</p>}
           {version.status === "draft" && !canPublish && (
             <p className="text-xs text-muted-foreground">公開するには、下の「添付ファイル」を1件以上追加してください。</p>
@@ -170,6 +186,7 @@ export default async function AnnouncementDetailPage({
               <TableRow>
                 <TableHead>出展者</TableHead>
                 <TableHead>送信状況</TableHead>
+                {requiresSubmission && <TableHead>提出状況</TableHead>}
                 <TableHead className="text-right">確認状況</TableHead>
               </TableRow>
             </TableHeader>
@@ -177,6 +194,7 @@ export default async function AnnouncementDetailPage({
               {recipients.map((r) => {
                 const delivery = deliveryByParticipation.get(r.id);
                 const ackAt = ackByParticipation.get(r.id);
+                const submission = submissionByParticipation.get(r.id);
                 return (
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">{r.brand_name ?? "（未設定）"}</TableCell>
@@ -186,6 +204,17 @@ export default async function AnnouncementDetailPage({
                       {delivery?.status === "failed" && <Badge variant="destructive">失敗</Badge>}
                       {!delivery && <Badge variant="outline">-</Badge>}
                     </TableCell>
+                    {requiresSubmission && (
+                      <TableCell>
+                        {submission ? (
+                          <span className="text-sm text-muted-foreground">
+                            提出済み（{submission.filename ?? "ファイル"}）
+                          </span>
+                        ) : (
+                          <Badge variant="outline">未提出</Badge>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       {ackAt ? (
                         <span className="text-sm text-muted-foreground">

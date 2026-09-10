@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Download } from "lucide-react";
+import { Download, FileUp } from "lucide-react";
 import Link from "next/link";
 
 function renderAnswerValue(value: unknown) {
@@ -103,16 +103,28 @@ export default async function ExhibitorDetailPage({
           <p className="text-sm text-muted-foreground">{profile?.company_name}</p>
           <p className="text-sm text-muted-foreground">{profile?.default_contact_email}</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          render={
-            <a href={`/events/${eventId}/exhibitors/${participationId}/download`}>
-              <Download />
-              このデータをダウンロード
-            </a>
-          }
-        />
+        <div className="flex shrink-0 gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            render={
+              <a href={`/events/${eventId}/announcements/new?participationId=${participationId}`}>
+                <FileUp />
+                資料を依頼する
+              </a>
+            }
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            render={
+              <a href={`/events/${eventId}/exhibitors/${participationId}/download`}>
+                <Download />
+                このデータをダウンロード
+              </a>
+            }
+          />
+        </div>
       </div>
 
       {ledgerRows && ledgerRows.length > 0 && (

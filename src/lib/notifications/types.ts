@@ -6,4 +6,6 @@ export type MyAnnouncementRow = {
   ack_required: boolean;
   acknowledged_at: string | null;
   attachments: { file_asset_id: string; filename: string | null; content_type: string }[] | null;
+  requires_submission: boolean;
+  submissions: { id: string; file_asset_id: string; filename: string | null; submitted_at: string }[] | null;
 };
