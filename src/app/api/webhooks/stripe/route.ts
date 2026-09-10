@@ -1,11 +1,77 @@
 import { NextResponse, type NextRequest } from "next/server";
+import type Stripe from "stripe";
 import { createStripeClient } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { notifyChargeFailed, notifyChargeSucceeded } from "@/lib/billing/notifyOrganizer";
 
-// Stripe Webhook受信エンドポイント（現時点ではダッシュボード未登録・待機状態）。
-// 署名検証 → payment_events への冪等な記録、の基盤のみ用意する。
-// 実際のイベント種別ごとの業務処理（自動課金結果の反映等）は、通常プランの
-// 自動課金実行機能を実装する際にここへ追加する。
+// service_invoicesの状態を更新し、対応するpayment_events行をprocessedにする。
+// service_invoice_idがmetadataに無い（このアプリが発行したPaymentIntentではない）
+// 場合は何もせずignoredとして扱う。
+async function reflectPaymentIntentResult(
+  serviceClient: ReturnType<typeof createServiceRoleClient>,
+  paymentEventId: string,
+  paymentIntent: Stripe.PaymentIntent,
+  outcome: "charged" | "failed",
+) {
+  const invoiceId = paymentIntent.metadata?.service_invoice_id;
+  if (!invoiceId) {
+    await serviceClient
+      .from("payment_events")
+      .update({ processing_status: "ignored", processed_at: new Date().toISOString() })
+      .eq("id", paymentEventId);
+    return;
+  }
+
+  const { data: invoice } = await serviceClient
+    .from("service_invoices")
+    .select("id, organizer_organization_id, total_amount_yen, event_id, events(name)")
+    .eq("id", invoiceId)
+    .single();
+  if (!invoice) {
+    await serviceClient
+      .from("payment_events")
+      .update({ processing_status: "ignored", processed_at: new Date().toISOString() })
+      .eq("id", paymentEventId);
+    return;
+  }
+
+  await serviceClient
+    .from("service_invoices")
+    .update({
+      status: outcome,
+      charged_at: outcome === "charged" ? new Date().toISOString() : null,
+      payment_event_id: paymentEventId,
+    })
+    .eq("id", invoiceId);
+
+  await serviceClient
+    .from("payment_events")
+    .update({
+      processing_status: "processed",
+      processed_at: new Date().toISOString(),
+      related_service_invoice_id: invoiceId,
+    })
+    .eq("id", paymentEventId);
+
+  const event = Array.isArray(invoice.events) ? invoice.events[0] : invoice.events;
+  const eventName = event?.name ?? "（不明なイベント）";
+  if (outcome === "charged") {
+    await notifyChargeSucceeded({
+      organizationId: invoice.organizer_organization_id,
+      eventName,
+      totalAmountYen: invoice.total_amount_yen,
+    });
+  } else {
+    await notifyChargeFailed({
+      organizationId: invoice.organizer_organization_id,
+      eventName,
+      totalAmountYen: invoice.total_amount_yen,
+    });
+  }
+}
+
+// Stripe Webhook受信エンドポイント。署名検証 → payment_events への冪等な記録 →
+// イベント種別に応じた業務処理（自動課金結果のservice_invoicesへの反映）を行う。
 export async function POST(request: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
@@ -30,25 +96,42 @@ export async function POST(request: NextRequest) {
   const serviceClient = createServiceRoleClient();
 
   // provider_event_id の一意制約により、Stripeからの再送でも二重処理しない。
-  const { error: insertError } = await serviceClient.from("payment_events").insert({
-    provider: "stripe",
-    provider_event_id: event.id,
-    event_type: event.type,
-    payload_json: event as unknown as Record<string, unknown>,
-    processing_status: "pending",
-  });
+  const { data: paymentEvent, error: insertError } = await serviceClient
+    .from("payment_events")
+    .insert({
+      provider: "stripe",
+      provider_event_id: event.id,
+      event_type: event.type,
+      payload_json: event as unknown as Record<string, unknown>,
+      processing_status: "pending",
+    })
+    .select("id")
+    .single();
 
-  if (insertError) {
+  if (insertError || !paymentEvent) {
     // unique制約違反 = 既知の重複配信。副作用を再実行せずそのまま200を返す。
-    if (insertError.code === "23505") {
+    if (insertError?.code === "23505") {
       return NextResponse.json({ received: true, duplicate: true });
     }
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return NextResponse.json({ error: insertError?.message }, { status: 500 });
   }
 
-  // TODO: 自動課金実行機能の実装時に、event.type に応じた業務処理をここへ追加する
-  // （payment_intent.succeeded / payment_intent.payment_failed 等）。
-  // 処理後は processing_status を 'processed' に更新すること。
+  try {
+    if (event.type === "payment_intent.succeeded") {
+      await reflectPaymentIntentResult(serviceClient, paymentEvent.id, event.data.object as Stripe.PaymentIntent, "charged");
+    } else if (event.type === "payment_intent.payment_failed") {
+      await reflectPaymentIntentResult(serviceClient, paymentEvent.id, event.data.object as Stripe.PaymentIntent, "failed");
+    } else {
+      await serviceClient
+        .from("payment_events")
+        .update({ processing_status: "ignored", processed_at: new Date().toISOString() })
+        .eq("id", paymentEvent.id);
+    }
+  } catch (err) {
+    // Stripe側の再送ループを避けるため、処理失敗時もHTTP 200を返す。
+    console.error(`stripe webhook: failed to process event ${event.id} (${event.type}):`, err);
+    await serviceClient.from("payment_events").update({ processing_status: "error" }).eq("id", paymentEvent.id);
+  }
 
   return NextResponse.json({ received: true });
 }

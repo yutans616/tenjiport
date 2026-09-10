@@ -96,24 +96,3 @@ export async function changeToStandardPlanAction() {
 
   revalidatePath("/plan");
 }
-
-// 本番ではVercel Cron等で月次実行する想定。ローカル開発では手動トリガー用のボタンとして残す。
-export async function generateInvoiceNowAction(serviceContractId: string) {
-  const context = await getOrganizerContext();
-  if (!context) redirect("/login");
-
-  const supabase = await createClient();
-  const periodStart = new Date();
-  periodStart.setDate(1);
-  periodStart.setHours(0, 0, 0, 0);
-  const periodEnd = new Date();
-
-  const { error } = await supabase.rpc("generate_service_invoice", {
-    p_service_contract_id: serviceContractId,
-    p_billing_period_start: periodStart.toISOString(),
-    p_billing_period_end: periodEnd.toISOString(),
-  });
-  if (error) throw new Error(`請求の確定に失敗しました: ${error.message}`);
-
-  revalidatePath("/plan");
-}

@@ -4,7 +4,6 @@ import { getOrganizerContext } from "@/lib/organizer/context";
 import {
   changeToAnnualPlanAction,
   changeToStandardPlanAction,
-  generateInvoiceNowAction,
   startAnnualPlanAction,
   startStandardPlanAction,
 } from "./actions";
@@ -180,12 +179,45 @@ export default async function PlanPage() {
     );
   }
 
-  const { data: billing } = await supabase.rpc("calculate_current_billing", { p_org_id: context.organizationId });
-  const estimate = billing?.[0];
+  const { data: pricing } = await supabase
+    .from("pricing_configs")
+    .select("base_fee_yen, included_participants, overage_unit_yen, is_test")
+    .eq("id", contract.pricing_config_id)
+    .single();
+
+  // 課金はイベント単位（終了日を起点に自動確定）のため、ここでは「まだ請求が
+  // 確定していないイベント」ごとに、現時点の参加社数から見込み金額を計算して表示する。
+  const { data: pendingUsage } = await supabase
+    .from("usage_ledger")
+    .select("event_id, quantity, events(name)")
+    .eq("service_contract_id", contract.id)
+    .is("billed_in_invoice_id", null);
+
+  const pendingByEvent = new Map<string, { name: string; count: number }>();
+  for (const row of pendingUsage ?? []) {
+    const event = Array.isArray(row.events) ? row.events[0] : row.events;
+    const existing = pendingByEvent.get(row.event_id) ?? { name: event?.name ?? "（不明なイベント）", count: 0 };
+    existing.count += row.quantity;
+    pendingByEvent.set(row.event_id, existing);
+  }
+  const pendingEstimates = Array.from(pendingByEvent.entries()).map(([eventId, v]) => {
+    const overageCount = Math.max(v.count - (pricing?.included_participants ?? 0), 0);
+    const overageAmount = overageCount * (pricing?.overage_unit_yen ?? 0);
+    const total = (pricing?.base_fee_yen ?? 0) + overageAmount;
+    return { eventId, name: v.name, count: v.count, overageCount, total };
+  });
+
+  const INVOICE_STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+    draft: { label: "下書き", variant: "outline" },
+    finalized: { label: "課金待ち", variant: "outline" },
+    charged: { label: "課金済み", variant: "secondary" },
+    failed: { label: "課金失敗", variant: "destructive" },
+    refunded: { label: "返金済み", variant: "outline" },
+  };
 
   const { data: invoices } = await supabase
     .from("service_invoices")
-    .select("id, billing_period_start, billing_period_end, total_amount_yen, status, created_at")
+    .select("id, event_id, total_amount_yen, status, created_at, events(name)")
     .eq("service_contract_id", contract.id)
     .order("created_at", { ascending: false });
 
@@ -198,30 +230,15 @@ export default async function PlanPage() {
           <CardTitle className="text-base">通常プラン</CardTitle>
           <div className="flex gap-2">
             <Badge>契約中</Badge>
-            {estimate?.is_test && <Badge variant="outline">テスト価格</Badge>}
+            {pricing?.is_test && <Badge variant="outline">テスト価格</Badge>}
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <dl className="flex flex-col gap-2 text-sm">
-            <div className="flex justify-between border-b py-1.5">
-              <dt className="text-muted-foreground">現在の課金対象出展者数</dt>
-              <dd>{estimate?.billable_count ?? 0}社</dd>
-            </div>
-            <div className="flex justify-between border-b py-1.5">
-              <dt className="text-muted-foreground">基本料金（{estimate?.included_participants ?? 30}社まで）</dt>
-              <dd>¥{(estimate?.base_fee_yen ?? 0).toLocaleString("ja-JP")}</dd>
-            </div>
-            <div className="flex justify-between border-b py-1.5">
-              <dt className="text-muted-foreground">
-                超過分（{estimate?.overage_count ?? 0}社 × ¥{estimate?.overage_unit_yen ?? 0}）
-              </dt>
-              <dd>¥{Number(estimate?.overage_amount_yen ?? 0).toLocaleString("ja-JP")}</dd>
-            </div>
-            <div className="flex justify-between py-1.5 font-medium">
-              <dt>今期の見込み金額（未請求ぶん）</dt>
-              <dd>¥{Number(estimate?.total_amount_yen ?? 0).toLocaleString("ja-JP")}</dd>
-            </div>
-          </dl>
+          <p className="text-xs text-muted-foreground">
+            料金はイベントごとに、そのイベント終了日を起点として自動的に確定・課金されます（基本料金¥
+            {(pricing?.base_fee_yen ?? 0).toLocaleString("ja-JP")}／{pricing?.included_participants ?? 30}社まで、以降1社¥
+            {pricing?.overage_unit_yen ?? 0}）。
+          </p>
           <div className="flex items-center gap-3">
             <p className="text-xs text-muted-foreground">
               カード登録: {contract.payment_method_status === "valid" ? "登録済み" : "未登録"}
@@ -234,11 +251,11 @@ export default async function PlanPage() {
               </form>
             )}
           </div>
-          <form action={generateInvoiceNowAction.bind(null, contract.id)}>
-            <Button type="submit" variant="outline" className="self-start">
-              今すぐ請求を確定する（開発用）
-            </Button>
-          </form>
+          {contract.payment_method_status !== "valid" && (
+            <p className="text-xs text-muted-foreground">
+              カード未登録でもイベントの作成・出展者の入力は引き続きご利用いただけます。請求確定後にカードを登録いただくと、自動で課金されます。
+            </p>
+          )}
           {annualOffer && (
             <form action={changeToAnnualPlanAction}>
               <Button type="submit" variant="ghost" size="sm" className="self-start text-muted-foreground">
@@ -246,27 +263,41 @@ export default async function PlanPage() {
               </Button>
             </form>
           )}
-          <p className="text-xs text-muted-foreground">
-            ※自動課金の実行（確定した請求へのカード請求）は今後の対応です。現時点では金額計算・カード登録までを行います。
-          </p>
         </CardContent>
       </Card>
+
+      {pendingEstimates.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">開催中のイベント（見込み金額）</h2>
+          {pendingEstimates.map((e) => (
+            <Card key={e.eventId}>
+              <CardContent className="flex items-center justify-between py-3 text-sm">
+                <span>{e.name}</span>
+                <span className="text-muted-foreground">{e.count}社</span>
+                <span className="font-medium">¥{e.total.toLocaleString("ja-JP")}</span>
+              </CardContent>
+            </Card>
+          ))}
+          <p className="text-xs text-muted-foreground">イベント終了日を過ぎると自動的に金額が確定し、課金されます。</p>
+        </div>
+      )}
 
       {invoices && invoices.length > 0 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold text-muted-foreground">請求履歴</h2>
-          {invoices.map((inv) => (
-            <Card key={inv.id}>
-              <CardContent className="flex items-center justify-between py-3 text-sm">
-                <span className="text-muted-foreground">
-                  {new Date(inv.billing_period_start).toLocaleDateString("ja-JP")} 〜{" "}
-                  {new Date(inv.billing_period_end).toLocaleDateString("ja-JP")}
-                </span>
-                <span className="font-medium">¥{inv.total_amount_yen.toLocaleString("ja-JP")}</span>
-                <Badge variant="outline">{inv.status}</Badge>
-              </CardContent>
-            </Card>
-          ))}
+          {invoices.map((inv) => {
+            const event = Array.isArray(inv.events) ? inv.events[0] : inv.events;
+            const statusInfo = INVOICE_STATUS_LABEL[inv.status] ?? { label: inv.status, variant: "outline" as const };
+            return (
+              <Card key={inv.id}>
+                <CardContent className="flex items-center justify-between py-3 text-sm">
+                  <span className="text-muted-foreground">{event?.name ?? "（不明なイベント）"}</span>
+                  <span className="font-medium">¥{inv.total_amount_yen.toLocaleString("ja-JP")}</span>
+                  <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
