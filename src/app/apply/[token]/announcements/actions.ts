@@ -44,24 +44,15 @@ export async function uploadAnnouncementSubmission(
     };
   }
 
-  const { data: version } = await supabase
-    .from("announcement_versions")
-    .select("id, announcement_id, announcements(event_id, requires_submission)")
-    .eq("id", announcementVersionId)
-    .single();
-  if (!version) {
-    return { ok: false, error: "資料が見つかりません。" };
-  }
-  const announcement = Array.isArray(version.announcements) ? version.announcements[0] : version.announcements;
-  if (!announcement?.requires_submission) {
-    return { ok: false, error: "この資料は提出を求められていません。" };
-  }
-
+  // announcement_versions/announcementsは出展者に直接SELECTするRLSを付与していない
+  // （出展者はget_my_announcements経由でのみ資料を読む設計のため）。event/participationは
+  // 出展者自身が読めるテーブルから辿り、提出可否そのものはINSERTポリシーと同じ
+  // can_submit_announcement（SECURITY DEFINER）で判定して基準をずらさないようにする。
   const { data: event } = await supabase
     .from("events")
     .select("id, organizer_organization_id")
-    .eq("id", announcement.event_id)
-    .single();
+    .eq("public_form_token", token)
+    .maybeSingle();
   if (!event) {
     return { ok: false, error: "イベントが見つかりません。" };
   }
@@ -85,6 +76,14 @@ export async function uploadAnnouncementSubmission(
     .maybeSingle();
   if (!participation) {
     return { ok: false, error: "参加情報が見つかりません。" };
+  }
+
+  const { data: canSubmit } = await supabase.rpc("can_submit_announcement", {
+    p_announcement_version_id: announcementVersionId,
+    p_event_participation_id: participation.id,
+  });
+  if (!canSubmit) {
+    return { ok: false, error: "この資料は提出を求められていません。" };
   }
 
   const serviceClient = createServiceRoleClient();

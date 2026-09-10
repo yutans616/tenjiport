@@ -7,20 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, FileUp } from "lucide-react";
-import Link from "next/link";
-
-function renderAnswerValue(value: unknown) {
-  if (Array.isArray(value)) return value.join("、");
-  if (value && typeof value === "object" && "fileAssetId" in value) {
-    const file = value as { fileAssetId: string; filename: string };
-    return (
-      <Link href={`/api/files/${file.fileAssetId}`} target="_blank" className="text-primary underline-offset-4 hover:underline">
-        {file.filename}
-      </Link>
-    );
-  }
-  return String(value ?? "");
-}
+import { renderAnswerValue } from "../answerUtils";
 
 const STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   draft: { label: "下書き", variant: "outline" },

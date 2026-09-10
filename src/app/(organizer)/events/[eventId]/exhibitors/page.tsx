@@ -27,11 +27,48 @@ export default async function ExhibitorsPage({
 
   const { data: participations } = await supabase
     .from("event_participations")
-    .select("id, status, group_tags, created_at, exhibitor_profiles(brand_name, company_name)")
+    .select("id, status, group_tags, created_at, resolved_price_yen, exhibitor_profiles(brand_name, company_name)")
     .eq("event_id", eventId)
     .order("created_at", { ascending: false });
 
   const participationIds = (participations ?? []).map((p) => p.id);
+
+  // 出展者一覧に表示できる項目一覧（フォームの全項目）と、参加者ごとの最新提出内容。
+  const { data: latestForm } = await supabase
+    .from("forms")
+    .select("id")
+    .eq("event_id", eventId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let formColumns: { key: string; label: string }[] = [];
+  const answersByParticipation = new Map<string, Record<string, unknown>>();
+  if (latestForm) {
+    const { data: sections } = await supabase
+      .from("form_sections")
+      .select("id, order, form_fields(key, label, order)")
+      .eq("form_id", latestForm.id)
+      .order("order", { ascending: true });
+    formColumns = (sections ?? []).flatMap((s) =>
+      (s.form_fields ?? [])
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((f) => ({ key: f.key, label: f.label })),
+    );
+  }
+  if (participationIds.length > 0) {
+    const { data: versions } = await supabase
+      .from("submission_versions")
+      .select("event_participation_id, version_number, data_snapshot_json")
+      .in("event_participation_id", participationIds)
+      .order("version_number", { ascending: false });
+    for (const v of versions ?? []) {
+      if (!answersByParticipation.has(v.event_participation_id)) {
+        answersByParticipation.set(v.event_participation_id, (v.data_snapshot_json as Record<string, unknown>) ?? {});
+      }
+    }
+  }
 
   // 請求書ステータス：参加者ごとに、いずれか未入金があれば「未入金」、全て入金済みなら「入金済み」、
   // 請求書が無ければ「未発行」として要約する。
@@ -104,6 +141,8 @@ export default async function ExhibitorsPage({
       invoiceStatus: invoiceStatusByParticipation.get(p.id) ?? "none",
       announcementTotal: totalByParticipation.get(p.id) ?? 0,
       announcementAcked: ackByParticipation.get(p.id) ?? 0,
+      resolvedPriceYen: p.resolved_price_yen,
+      answers: answersByParticipation.get(p.id) ?? {},
     };
   });
 
@@ -122,7 +161,7 @@ export default async function ExhibitorsPage({
         />
       </div>
 
-      <ExhibitorTable eventId={eventId} rows={rows} />
+      <ExhibitorTable eventId={eventId} rows={rows} formColumns={formColumns} />
     </div>
   );
 }
