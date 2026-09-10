@@ -31,7 +31,7 @@ export default async function SettingsPage({
   const supabase = await createClient();
   const { data: bankAccount } = await supabase
     .from("organizer_bank_accounts")
-    .select("bank_name, branch_name, account_type, account_number, account_holder_name")
+    .select("bank_name, branch_name, account_type, account_number, account_holder_name, qualified_invoice_registration_number")
     .eq("organization_id", context.organizationId)
     .maybeSingle();
 
@@ -78,6 +78,18 @@ export default async function SettingsPage({
                 defaultValue={bankAccount?.account_holder_name ?? ""}
                 placeholder="例：カ）ブラックイッシュギア"
               />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="qualified_invoice_registration_number">適格請求書発行事業者登録番号（任意）</Label>
+              <Input
+                id="qualified_invoice_registration_number"
+                name="qualified_invoice_registration_number"
+                defaultValue={bankAccount?.qualified_invoice_registration_number ?? ""}
+                placeholder="例：T1234567890123"
+              />
+              <p className="text-xs text-muted-foreground">
+                自動発行される請求書PDFに記載されます。未設定の場合は登録番号欄なしで発行されます。
+              </p>
             </div>
             <Button type="submit" className="self-start">
               保存する

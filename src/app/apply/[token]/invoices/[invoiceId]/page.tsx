@@ -20,7 +20,7 @@ export default async function ExhibitorInvoiceDetailPage({
 
   const { data: invoice } = await supabase
     .from("exhibitor_invoices")
-    .select("id, invoice_file_id, amount_yen, due_date, invoice_ack_status, payment_status, paid_at")
+    .select("id, invoice_number, invoice_file_id, amount_yen, due_date, invoice_ack_status, payment_status, paid_at")
     .eq("id", invoiceId)
     .single();
   if (!invoice) notFound();
@@ -50,6 +50,12 @@ export default async function ExhibitorInvoiceDetailPage({
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <dl className="flex flex-col gap-2 text-sm">
+            {invoice.invoice_number && (
+              <div className="flex justify-between border-b py-1.5">
+                <dt className="text-muted-foreground">請求書番号</dt>
+                <dd>{invoice.invoice_number}</dd>
+              </div>
+            )}
             <div className="flex justify-between border-b py-1.5">
               <dt className="text-muted-foreground">金額</dt>
               <dd>¥{invoice.amount_yen.toLocaleString("ja-JP")}</dd>

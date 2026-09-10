@@ -34,7 +34,7 @@ export default async function InvoiceDetailPage({
   const { data: invoice } = await supabase
     .from("exhibitor_invoices")
     .select(
-      "id, event_participation_id, invoice_file_id, amount_yen, due_date, invoice_ack_status, invoice_ack_at, payment_status, paid_at, organizer_internal_memo, event_participations(resolved_price_yen, exhibitor_profiles(brand_name, company_name)), file_assets(filename)",
+      "id, invoice_number, event_participation_id, invoice_file_id, amount_yen, due_date, invoice_ack_status, invoice_ack_at, payment_status, paid_at, organizer_internal_memo, event_participations(resolved_price_yen, exhibitor_profiles(brand_name, company_name)), file_assets(filename)",
     )
     .eq("id", invoiceId)
     .single();
@@ -87,6 +87,7 @@ export default async function InvoiceDetailPage({
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {invoice.invoice_number && <p className="text-xs text-muted-foreground">請求書番号: {invoice.invoice_number}</p>}
           {priceMismatch && participation && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-400">
               フォームの選択内容による金額（¥{participation.resolved_price_yen!.toLocaleString("ja-JP")}）と、この請求書の金額（¥

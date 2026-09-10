@@ -17,6 +17,7 @@ export async function updateBankAccountAction(formData: FormData) {
   const accountType = String(formData.get("account_type") ?? "").trim() || null;
   const accountNumber = String(formData.get("account_number") ?? "").trim() || null;
   const accountHolderName = String(formData.get("account_holder_name") ?? "").trim() || null;
+  const qualifiedInvoiceRegistrationNumber = String(formData.get("qualified_invoice_registration_number") ?? "").trim() || null;
 
   const supabase = await createClient();
   const { error } = await supabase.from("organizer_bank_accounts").upsert({
@@ -26,6 +27,7 @@ export async function updateBankAccountAction(formData: FormData) {
     account_type: accountType,
     account_number: accountNumber,
     account_holder_name: accountHolderName,
+    qualified_invoice_registration_number: qualifiedInvoiceRegistrationNumber,
   });
   if (error) throw new Error(`保存に失敗しました: ${error.message}`);
 

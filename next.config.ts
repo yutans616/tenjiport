@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "25mb",
     },
   },
+  // 請求書PDF自動生成が読み込む日本語フォントは実行時にfs.readFileSyncで動的パス
+  // 読み込みするため、標準のトレースでは検出されない。デプロイ時に確実に含める。
+  outputFileTracingIncludes: {
+    "/events/[eventId]/invoices/**": ["./src/lib/pdf/fonts/**"],
+  },
 };
 
 export default nextConfig;
