@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SuccessBanner } from "@/components/organizer/success-banner";
+import Link from "next/link";
 
 export default async function InvoiceDetailPage({
   params,
@@ -55,6 +56,13 @@ export default async function InvoiceDetailPage({
     .select("id, changed_at, field_changed, old_value, new_value, note")
     .eq("exhibitor_invoice_id", invoiceId)
     .order("changed_at", { ascending: false });
+
+  const { data: bankAccount } = await supabase
+    .from("organizer_bank_accounts")
+    .select("bank_name, branch_name, account_type, account_number, account_holder_name")
+    .eq("organization_id", context.organizationId)
+    .maybeSingle();
+  const hasBankAccount = bankAccount && (bankAccount.bank_name || bankAccount.account_number);
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6">
@@ -115,6 +123,15 @@ export default async function InvoiceDetailPage({
           </form>
         </CardContent>
       </Card>
+
+      {!hasBankAccount && (
+        <p className="text-xs text-muted-foreground">
+          銀行口座が未登録のため、出展者には振込先が表示されません。
+          <Link href="/settings" className="ml-1 text-primary underline-offset-4 hover:underline">
+            設定で登録する
+          </Link>
+        </p>
+      )}
 
       <Card>
         <CardHeader>

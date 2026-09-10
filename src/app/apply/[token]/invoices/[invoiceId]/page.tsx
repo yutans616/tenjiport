@@ -31,6 +31,10 @@ export default async function ExhibitorInvoiceDetailPage({
     invoiceFilename = data ?? null;
   }
 
+  const { data: bankRows } = await supabase.rpc("get_invoice_bank_details", { p_invoice_id: invoiceId });
+  const bankDetails = bankRows?.[0];
+  const hasBankDetails = bankDetails && (bankDetails.bank_name || bankDetails.account_number);
+
   const confirmWithIds = confirmInvoiceAction.bind(null, token, invoiceId);
 
   return (
@@ -67,9 +71,42 @@ export default async function ExhibitorInvoiceDetailPage({
             </a>
           )}
 
-          <p className="text-sm text-muted-foreground">
-            銀行振込にてお支払いください。入金確認は主催者側で行われます。
-          </p>
+          {hasBankDetails ? (
+            <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+              <p className="font-medium">お振込先</p>
+              <dl className="mt-1 flex flex-col gap-0.5 text-muted-foreground">
+                {bankDetails?.bank_name && (
+                  <div className="flex justify-between gap-4">
+                    <dt>銀行名</dt>
+                    <dd className="text-foreground">{bankDetails.bank_name}</dd>
+                  </div>
+                )}
+                {bankDetails?.branch_name && (
+                  <div className="flex justify-between gap-4">
+                    <dt>支店名</dt>
+                    <dd className="text-foreground">{bankDetails.branch_name}</dd>
+                  </div>
+                )}
+                {bankDetails?.account_type && bankDetails?.account_number && (
+                  <div className="flex justify-between gap-4">
+                    <dt>口座番号</dt>
+                    <dd className="text-foreground">
+                      {bankDetails.account_type} {bankDetails.account_number}
+                    </dd>
+                  </div>
+                )}
+                {bankDetails?.account_holder_name && (
+                  <div className="flex justify-between gap-4">
+                    <dt>口座名義</dt>
+                    <dd className="text-foreground">{bankDetails.account_holder_name}</dd>
+                  </div>
+                )}
+              </dl>
+              <p className="mt-2 text-xs text-muted-foreground">入金確認は主催者側で行われます。</p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">銀行振込にてお支払いください。入金確認は主催者側で行われます。</p>
+          )}
 
           {invoice.invoice_ack_status === "confirmed" ? (
             <Badge variant="secondary" className="w-fit">
