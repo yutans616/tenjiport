@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -55,53 +56,57 @@ export function ColumnSelector({
       <DropdownMenuContent align="start" className="w-72">
         {selected.length > 0 && (
           <>
-            <DropdownMenuLabel>表示中（並べ替え可）</DropdownMenuLabel>
-            <div className="flex flex-col gap-0.5 px-1 pb-1">
-              {selected.map((key, i) => (
-                <div key={key} className="flex items-center gap-1 rounded-md py-1 pr-1 pl-1.5 text-sm hover:bg-accent">
-                  <span className="flex-1 truncate">{labelByKey.get(key) ?? key}</span>
-                  <button
-                    type="button"
-                    disabled={i === 0}
-                    onClick={() => move(key, -1)}
-                    aria-label="上へ"
-                    className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  >
-                    <ChevronUp className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={i === selected.length - 1}
-                    onClick={() => move(key, 1)}
-                    aria-label="下へ"
-                    className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  >
-                    <ArrowDown className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggle(key)}
-                    aria-label="非表示にする"
-                    className="rounded p-0.5 text-muted-foreground hover:text-destructive"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>表示中（並べ替え可）</DropdownMenuLabel>
+              <div className="flex flex-col gap-0.5 px-1 pb-1">
+                {selected.map((key, i) => (
+                  <div key={key} className="flex items-center gap-1 rounded-md py-1 pr-1 pl-1.5 text-sm hover:bg-accent">
+                    <span className="flex-1 truncate">{labelByKey.get(key) ?? key}</span>
+                    <button
+                      type="button"
+                      disabled={i === 0}
+                      onClick={() => move(key, -1)}
+                      aria-label="上へ"
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                    >
+                      <ChevronUp className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={i === selected.length - 1}
+                      onClick={() => move(key, 1)}
+                      aria-label="下へ"
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                    >
+                      <ArrowDown className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggle(key)}
+                      aria-label="非表示にする"
+                      className="rounded p-0.5 text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuLabel>追加できる項目</DropdownMenuLabel>
-        <div className="flex flex-col gap-0.5 px-1 pb-1">
-          {unselected.length === 0 && <p className="px-1.5 py-1 text-xs text-muted-foreground">すべて表示中です。</p>}
-          {unselected.map((key) => (
-            <label key={key} className="flex cursor-pointer items-center gap-2 rounded-md py-1 px-1.5 text-sm hover:bg-accent">
-              <input type="checkbox" checked={false} onChange={() => toggle(key)} className="size-4 rounded border-input" />
-              {labelByKey.get(key) ?? key}
-            </label>
-          ))}
-        </div>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>追加できる項目</DropdownMenuLabel>
+          <div className="flex flex-col gap-0.5 px-1 pb-1">
+            {unselected.length === 0 && <p className="px-1.5 py-1 text-xs text-muted-foreground">すべて表示中です。</p>}
+            {unselected.map((key) => (
+              <label key={key} className="flex cursor-pointer items-center gap-2 rounded-md py-1 px-1.5 text-sm hover:bg-accent">
+                <input type="checkbox" checked={false} onChange={() => toggle(key)} className="size-4 rounded border-input" />
+                {labelByKey.get(key) ?? key}
+              </label>
+            ))}
+          </div>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

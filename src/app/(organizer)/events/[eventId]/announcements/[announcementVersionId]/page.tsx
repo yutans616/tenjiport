@@ -102,13 +102,13 @@ export default async function AnnouncementDetailPage({
   const { data: submissions } = version.status === "published"
     ? await supabase
         .from("announcement_submissions")
-        .select("event_participation_id, submitted_at, file_assets(filename)")
+        .select("event_participation_id, submitted_at, file_assets(id, filename)")
         .eq("announcement_version_id", announcementVersionId)
     : { data: [] };
   const submissionByParticipation = new Map(
     (submissions ?? []).map((s) => {
       const file = Array.isArray(s.file_assets) ? s.file_assets[0] : s.file_assets;
-      return [s.event_participation_id, { submittedAt: s.submitted_at, filename: file?.filename ?? null }];
+      return [s.event_participation_id, { submittedAt: s.submitted_at, fileId: file?.id ?? null, filename: file?.filename ?? null }];
     }),
   );
 
@@ -208,10 +208,15 @@ export default async function AnnouncementDetailPage({
                     </TableCell>
                     {requiresSubmission && (
                       <TableCell>
-                        {submission ? (
-                          <span className="text-sm text-muted-foreground">
-                            提出済み（{submission.filename ?? "ファイル"}）
-                          </span>
+                        {submission?.fileId ? (
+                          <a
+                            href={`/api/files/${submission.fileId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-primary underline-offset-4 hover:underline"
+                          >
+                            ダウンロード（{submission.filename ?? "ファイル"}）
+                          </a>
                         ) : (
                           <Badge variant="outline">未提出</Badge>
                         )}
