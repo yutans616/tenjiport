@@ -58,12 +58,20 @@ export default async function OnboardPage() {
                 出展者に発行する請求書PDFに記載されます。後から設定画面でも変更できます。
               </p>
               <div className="grid gap-1.5">
+                <Label htmlFor="company_name">会社名</Label>
+                <Input id="company_name" name="company_name" required placeholder="例：株式会社〇〇" />
+              </div>
+              <div className="grid gap-1.5">
                 <Label htmlFor="postal_code">郵便番号</Label>
                 <Input id="postal_code" name="postal_code" required placeholder="例：123-4567" className="max-w-40" />
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="address">住所</Label>
                 <Input id="address" name="address" required placeholder="例：東京都〇〇区〇〇1-2-3" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="phone_number">電話番号</Label>
+                <Input id="phone_number" name="phone_number" required placeholder="例：03-1234-5678" className="max-w-48" />
               </div>
             </CardContent>
           </Card>

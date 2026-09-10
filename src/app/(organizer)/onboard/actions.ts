@@ -6,11 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 export async function createOrganization(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const billingEmail = String(formData.get("billing_email") ?? "").trim();
+  const companyName = String(formData.get("company_name") ?? "").trim();
   const postalCode = String(formData.get("postal_code") ?? "").trim();
   const address = String(formData.get("address") ?? "").trim();
+  const phoneNumber = String(formData.get("phone_number") ?? "").trim();
 
-  if (!name || !billingEmail || !postalCode || !address) {
-    throw new Error("組織名・請求先メールアドレス・郵便番号・住所は必須です。");
+  if (!name || !billingEmail || !companyName || !postalCode || !address || !phoneNumber) {
+    throw new Error("組織名・請求先メールアドレス・会社名・郵便番号・住所・電話番号は必須です。");
   }
 
   const supabase = await createClient();
@@ -35,8 +37,10 @@ export async function createOrganization(formData: FormData) {
 
   const { error: bankAccountError } = await supabase.from("organizer_bank_accounts").insert({
     organization_id: newOrg.id,
+    company_name: companyName,
     postal_code: postalCode,
     address: address,
+    phone_number: phoneNumber,
   });
 
   if (bankAccountError) {

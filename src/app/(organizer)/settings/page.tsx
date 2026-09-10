@@ -32,7 +32,7 @@ export default async function SettingsPage({
   const { data: bankAccount } = await supabase
     .from("organizer_bank_accounts")
     .select(
-      "bank_name, branch_name, account_type, account_number, account_holder_name, qualified_invoice_registration_number, postal_code, address",
+      "bank_name, branch_name, account_type, account_number, account_holder_name, qualified_invoice_registration_number, company_name, postal_code, address, phone_number",
     )
     .eq("organization_id", context.organizationId)
     .maybeSingle();
@@ -54,12 +54,20 @@ export default async function SettingsPage({
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="grid gap-1.5">
+              <Label htmlFor="company_name">会社名</Label>
+              <Input id="company_name" name="company_name" defaultValue={bankAccount?.company_name ?? ""} placeholder="例：株式会社〇〇" />
+            </div>
+            <div className="grid gap-1.5">
               <Label htmlFor="postal_code">郵便番号</Label>
               <Input id="postal_code" name="postal_code" defaultValue={bankAccount?.postal_code ?? ""} placeholder="例：123-4567" className="max-w-40" />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="address">住所</Label>
               <Input id="address" name="address" defaultValue={bankAccount?.address ?? ""} placeholder="例：東京都〇〇区〇〇1-2-3" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="phone_number">電話番号</Label>
+              <Input id="phone_number" name="phone_number" defaultValue={bankAccount?.phone_number ?? ""} placeholder="例：03-1234-5678" className="max-w-48" />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="qualified_invoice_registration_number">適格請求書発行事業者登録番号（任意）</Label>

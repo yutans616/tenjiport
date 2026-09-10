@@ -54,7 +54,7 @@ async function generateAndAttachInvoicePdf(params: {
     const { data: bankAccount } = await supabase
       .from("organizer_bank_accounts")
       .select(
-        "bank_name, branch_name, account_type, account_number, account_holder_name, qualified_invoice_registration_number, postal_code, address",
+        "bank_name, branch_name, account_type, account_number, account_holder_name, qualified_invoice_registration_number, company_name, postal_code, address, phone_number",
       )
       .eq("organization_id", context.organizationId)
       .maybeSingle();
@@ -66,8 +66,10 @@ async function generateAndAttachInvoicePdf(params: {
       issueDate: new Date(),
       dueDate,
       organizerName: context.organizationName,
+      organizerCompanyName: bankAccount?.company_name ?? null,
       organizerPostalCode: bankAccount?.postal_code ?? null,
       organizerAddress: bankAccount?.address ?? null,
+      organizerPhoneNumber: bankAccount?.phone_number ?? null,
       registrationNumber: bankAccount?.qualified_invoice_registration_number ?? null,
       bankDetails: bankAccount
         ? {

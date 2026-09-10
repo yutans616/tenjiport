@@ -19,8 +19,10 @@ export type InvoicePdfData = {
   issueDate: Date;
   dueDate: string | null;
   organizerName: string;
+  organizerCompanyName: string | null;
   organizerPostalCode: string | null;
   organizerAddress: string | null;
+  organizerPhoneNumber: string | null;
   registrationNumber: string | null;
   bankDetails: InvoicePdfBankDetails | null;
   exhibitorCompanyName: string;
@@ -86,9 +88,10 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> 
       doc.font("jp-bold").fontSize(10);
       doc.text("発行元", rightColX, doc.y, { width: rightColWidth, align: "right" });
       doc.font("jp").fontSize(10);
-      doc.text(data.organizerName, rightColX, doc.y, { width: rightColWidth, align: "right" });
+      doc.text(data.organizerCompanyName ?? data.organizerName, rightColX, doc.y, { width: rightColWidth, align: "right" });
       if (data.organizerPostalCode) doc.text(`〒${data.organizerPostalCode}`, rightColX, doc.y, { width: rightColWidth, align: "right" });
       if (data.organizerAddress) doc.text(data.organizerAddress, rightColX, doc.y, { width: rightColWidth, align: "right" });
+      if (data.organizerPhoneNumber) doc.text(`TEL: ${data.organizerPhoneNumber}`, rightColX, doc.y, { width: rightColWidth, align: "right" });
       if (data.registrationNumber) {
         doc.text(`登録番号: ${data.registrationNumber}`, rightColX, doc.y, { width: rightColWidth, align: "right" });
       }
