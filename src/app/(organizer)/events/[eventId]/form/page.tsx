@@ -13,18 +13,19 @@ import {
   ensureDraftForm,
   publishForm,
   regeneratePublicToken,
+  updateField,
+  updateSectionTitle,
 } from "./actions";
 import { SECTION_TEMPLATES } from "./templates";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { SuccessBanner } from "@/components/organizer/success-banner";
 import { CopyButton } from "@/components/organizer/copy-button";
+import { FieldForm } from "./FieldForm";
+import { FieldRow } from "./FieldRow";
+import { SectionTitleEditor } from "./SectionTitleEditor";
 
 const PRESET_FIELD_OPTIONS: { key: string; label: string }[] = [
   { key: "brand_name", label: "ブランド名" },
@@ -38,33 +39,6 @@ const PRESET_FIELD_OPTIONS: { key: string; label: string }[] = [
   { key: "sns_x", label: "X（旧Twitter）" },
   { key: "sns_youtube", label: "YouTube" },
 ];
-
-type Choice = string | { label: string; price_yen: number; capacity: number | null };
-
-function formatChoices(optionsJson: { choices?: Choice[] } | null): string | null {
-  const choices = optionsJson?.choices;
-  if (!choices || choices.length === 0) return null;
-  return choices
-    .map((c) => {
-      if (typeof c === "string") return c;
-      const price = c.price_yen > 0 ? `¥${c.price_yen.toLocaleString("ja-JP")}` : "無料";
-      const capacity = c.capacity != null ? `・在庫${c.capacity}` : "";
-      return `${c.label}（${price}${capacity}）`;
-    })
-    .join("、");
-}
-
-const FIELD_TYPE_LABEL: Record<string, string> = {
-  short_text: "短文",
-  long_text: "長文",
-  number: "数値",
-  date: "日付",
-  single_select: "単一選択",
-  multi_select: "複数選択",
-  checkbox: "チェック",
-  file: "ファイル",
-  repeating: "繰り返し入力",
-};
 
 export default async function FormBuilderPage({
   params,
@@ -169,7 +143,7 @@ export default async function FormBuilderPage({
         {sections?.map((section) => (
           <Card key={section.id}>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">{section.title}</CardTitle>
+              <SectionTitleEditor title={section.title} updateAction={updateSectionTitle.bind(null, eventId, section.id)} />
               <form action={deleteSection.bind(null, eventId, section.id)}>
                 <Button type="submit" variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
                   <Trash2 />
@@ -181,35 +155,14 @@ export default async function FormBuilderPage({
                 <ul className="flex flex-col gap-2">
                   {(section.form_fields ?? [])
                     .sort((a, b) => a.order - b.order)
-                    .map((field) => {
-                      const choicesSummary = formatChoices(field.options_json as { choices?: Choice[] } | null);
-                      return (
-                        <li
-                          key={field.id}
-                          className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2 text-sm"
-                        >
-                          <span className="flex flex-col gap-1">
-                            <span className="flex items-center gap-2">
-                              {field.label}
-                              <Badge variant="secondary" className="font-normal">
-                                {FIELD_TYPE_LABEL[field.type] ?? field.type}
-                              </Badge>
-                              {field.required && (
-                                <Badge variant="outline" className="font-normal">
-                                  必須
-                                </Badge>
-                              )}
-                            </span>
-                            {choicesSummary && <span className="text-xs text-muted-foreground">{choicesSummary}</span>}
-                          </span>
-                          <form action={deleteField.bind(null, eventId, field.id)}>
-                            <Button type="submit" variant="ghost" size="sm" className="shrink-0 text-muted-foreground hover:text-destructive">
-                              削除
-                            </Button>
-                          </form>
-                        </li>
-                      );
-                    })}
+                    .map((field) => (
+                      <FieldRow
+                        key={field.id}
+                        field={field}
+                        updateAction={updateField.bind(null, eventId, field.id)}
+                        deleteAction={deleteField.bind(null, eventId, field.id)}
+                      />
+                    ))}
                 </ul>
               )}
 
@@ -229,48 +182,9 @@ export default async function FormBuilderPage({
                 <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
                   + その他の項目を追加
                 </summary>
-                <form action={addField.bind(null, eventId, section.id)} className="mt-4 flex flex-col gap-4">
-                  <div className="grid gap-1.5">
-                    <Label>項目名</Label>
-                    <Input name="label" required />
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label>タイプ</Label>
-                    <NativeSelect name="type" defaultValue="short_text">
-                      {Object.entries(FIELD_TYPE_LABEL).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label>選択肢（単一選択・複数選択の場合、カンマ区切り）</Label>
-                    <Input name="options" placeholder="例：あり,なし" />
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label>価格・在庫付きの選択肢（コマ選択など。設定する場合は上の「選択肢」ではなくこちらを使用）</Label>
-                    <Textarea
-                      name="priced_options"
-                      rows={3}
-                      placeholder={"1行に1つ、「選択肢名,価格円,在庫上限」の形式で入力（在庫上限は空欄で無制限）\n例：コマA(3m×3m),15000,10\nコマB(2m×2m),8000,"}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      入力すると、出展者の選択に応じた金額が自動計算され、出展者詳細ページに表示されます。
-                    </p>
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label>説明（任意）</Label>
-                    <Input name="help_text" />
-                  </div>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="required" className="size-4 rounded border-input" />
-                    必須項目にする
-                  </label>
-                  <Button type="submit" className="self-start">
-                    追加する
-                  </Button>
-                </form>
+                <div className="mt-4">
+                  <FieldForm action={addField.bind(null, eventId, section.id)} submitLabel="追加する" />
+                </div>
               </details>
             </CardContent>
           </Card>

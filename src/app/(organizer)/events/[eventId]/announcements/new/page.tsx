@@ -32,7 +32,7 @@ export default async function NewAnnouncementPage({
 
   const { data: participations } = await supabase
     .from("event_participations")
-    .select("id, exhibitor_profiles(brand_name)")
+    .select("id, status, exhibitor_profiles(brand_name)")
     .eq("event_id", eventId)
     .not("status", "in", "(cancelled,merged)");
 
@@ -73,7 +73,7 @@ export default async function NewAnnouncementPage({
             <AudienceSelector
               participations={(participations ?? []).map((p) => {
                 const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
-                return { id: p.id, brandName: profile?.brand_name ?? "（未設定）" };
+                return { id: p.id, brandName: profile?.brand_name ?? "（未設定）", status: p.status };
               })}
               defaultParticipationId={participationId}
             />

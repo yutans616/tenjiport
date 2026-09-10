@@ -38,7 +38,9 @@ export default async function AnnouncementDetailPage({
 
   const { data: version } = await supabase
     .from("announcement_versions")
-    .select("id, title, body, status, version_number, published_at, announcement_id, announcements(requires_submission)")
+    .select(
+      "id, title, body, status, version_number, published_at, announcement_id, announcements!announcement_versions_announcement_id_fkey(requires_submission)",
+    )
     .eq("id", announcementVersionId)
     .single();
   if (!version) notFound();

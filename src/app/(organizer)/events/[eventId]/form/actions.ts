@@ -5,18 +5,38 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { SECTION_TEMPLATES } from "./templates";
+import { FIELD_TYPES } from "./fieldTypes";
 
-const FIELD_TYPES = [
-  "short_text",
-  "long_text",
-  "number",
-  "date",
-  "single_select",
-  "multi_select",
-  "checkbox",
-  "file",
-  "repeating",
-] as const;
+// 選択肢入力（プレーンなカンマ区切り欄・価格/在庫付きの複数行欄）を options_json に変換する。
+// addField/updateField で共通利用する。
+function buildOptionsJson(type: string, optionsRaw: string, pricedOptionsRaw: string): { choices: unknown[] } | null {
+  if (type !== "single_select" && type !== "multi_select") return null;
+
+  if (pricedOptionsRaw) {
+    const choices = pricedOptionsRaw
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [labelPart, pricePart, capacityPart] = line.split(",").map((s) => s.trim());
+        const priceYen = pricePart ? Number(pricePart.replace(/[^\d]/g, "")) : 0;
+        const capacity = capacityPart ? Number(capacityPart.replace(/[^\d]/g, "")) : null;
+        return {
+          label: labelPart,
+          price_yen: Number.isFinite(priceYen) ? priceYen : 0,
+          capacity: capacity !== null && Number.isFinite(capacity) ? capacity : null,
+        };
+      })
+      .filter((c) => c.label);
+    return choices.length > 0 ? { choices } : null;
+  }
+
+  if (optionsRaw) {
+    return { choices: optionsRaw.split(",").map((s) => s.trim()).filter(Boolean) };
+  }
+
+  return null;
+}
 
 async function requireOrganizerEvent(eventId: string) {
   const context = await getOrganizerContext();
@@ -137,29 +157,7 @@ export async function addField(eventId: string, sectionId: string, formData: For
     throw new Error("不正な項目タイプです。");
   }
 
-  let optionsJson: { choices: unknown[] } | null = null;
-  if (type === "single_select" || type === "multi_select") {
-    if (pricedOptionsRaw) {
-      const choices = pricedOptionsRaw
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const [labelPart, pricePart, capacityPart] = line.split(",").map((s) => s.trim());
-          const priceYen = pricePart ? Number(pricePart.replace(/[^\d]/g, "")) : 0;
-          const capacity = capacityPart ? Number(capacityPart.replace(/[^\d]/g, "")) : null;
-          return {
-            label: labelPart,
-            price_yen: Number.isFinite(priceYen) ? priceYen : 0,
-            capacity: capacity !== null && Number.isFinite(capacity) ? capacity : null,
-          };
-        })
-        .filter((c) => c.label);
-      if (choices.length > 0) optionsJson = { choices };
-    } else if (optionsRaw) {
-      optionsJson = { choices: optionsRaw.split(",").map((s) => s.trim()).filter(Boolean) };
-    }
-  }
+  const optionsJson = buildOptionsJson(type, optionsRaw, pricedOptionsRaw);
 
   const key = `f_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
@@ -223,6 +221,42 @@ export async function addPresetField(eventId: string, sectionId: string, presetK
     order: nextOrder,
   });
   if (error) throw new Error(`項目の追加に失敗しました: ${error.message}`);
+
+  revalidatePath(`/events/${eventId}/form`);
+}
+
+export async function updateField(eventId: string, fieldId: string, formData: FormData) {
+  const { supabase } = await requireOrganizerEvent(eventId);
+  const label = String(formData.get("label") ?? "").trim();
+  const type = String(formData.get("type") ?? "short_text");
+  const required = formData.get("required") === "on";
+  const helpText = String(formData.get("help_text") ?? "").trim() || null;
+  const optionsRaw = String(formData.get("options") ?? "").trim();
+  const pricedOptionsRaw = String(formData.get("priced_options") ?? "").trim();
+
+  if (!label) throw new Error("項目名は必須です。");
+  if (!FIELD_TYPES.includes(type as (typeof FIELD_TYPES)[number])) {
+    throw new Error("不正な項目タイプです。");
+  }
+
+  const optionsJson = buildOptionsJson(type, optionsRaw, pricedOptionsRaw);
+
+  const { error } = await supabase
+    .from("form_fields")
+    .update({ label, type, required, help_text: helpText, options_json: optionsJson })
+    .eq("id", fieldId);
+  if (error) throw new Error(`項目の更新に失敗しました: ${error.message}`);
+
+  revalidatePath(`/events/${eventId}/form`);
+}
+
+export async function updateSectionTitle(eventId: string, sectionId: string, formData: FormData) {
+  const { supabase } = await requireOrganizerEvent(eventId);
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) throw new Error("セクション名は必須です。");
+
+  const { error } = await supabase.from("form_sections").update({ title }).eq("id", sectionId);
+  if (error) throw new Error(`セクション名の更新に失敗しました: ${error.message}`);
 
   revalidatePath(`/events/${eventId}/form`);
 }

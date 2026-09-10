@@ -167,7 +167,7 @@ export async function publishAnnouncementAction(eventId: string, announcementVer
 
   const { data: version } = await supabase
     .from("announcement_versions")
-    .select("announcement_id, announcements(requires_submission)")
+    .select("announcement_id, announcements!announcement_versions_announcement_id_fkey(requires_submission)")
     .eq("id", announcementVersionId)
     .single();
   const announcement = version

@@ -1,8 +1,10 @@
 // ブリーフ5章「収集する代表項目」に基づく、展示会でよく使うセクションのテンプレート。
 // brand（ブランド共通情報）内の予約キーは exhibitor_profiles への自動同期対象（actions.tsのPRESET_FIELDSと共通）。
+type TemplateChoice = string | { label: string; price_yen: number; capacity: number | null };
+
 export const SECTION_TEMPLATES: Record<
   string,
-  { title: string; fields: { key: string; label: string; type: string; required?: boolean; options?: string[] }[] }
+  { title: string; fields: { key: string; label: string; type: string; required?: boolean; options?: TemplateChoice[] }[] }
 > = {
   brand: {
     title: "ブランド共通情報",
@@ -34,6 +36,22 @@ export const SECTION_TEMPLATES: Record<
       { key: "exhibit_content", label: "展示・販売内容", type: "long_text" },
       { key: "onsite_contact_name", label: "当日担当者", type: "short_text" },
       { key: "emergency_contact", label: "緊急連絡先", type: "short_text" },
+    ],
+  },
+  booth: {
+    title: "希望ブース",
+    fields: [
+      {
+        key: "booth_size",
+        label: "希望ブース",
+        type: "single_select",
+        required: true,
+        options: [
+          { label: "コマA(3m×3m)", price_yen: 150000, capacity: 50 },
+          { label: "コマB(2m×2m)", price_yen: 100000, capacity: 30 },
+          { label: "コマC(1.5m×1.5m)", price_yen: 60000, capacity: 20 },
+        ],
+      },
     ],
   },
   power: {
