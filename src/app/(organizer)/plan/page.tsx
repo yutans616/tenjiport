@@ -186,8 +186,8 @@ export default async function PlanPage() {
     .eq("id", contract.pricing_config_id)
     .single();
 
-  // 課金はイベント単位（終了日を起点に自動確定）のため、ここでは「まだ請求が
-  // 確定していないイベント」ごとに、現時点の参加社数から見込み金額を計算して表示する。
+  // 基本料金はイベント作成時に即時課金済みのため、ここで表示するのは「終了日を
+  // 迎えたときに追加課金される見込みの超過分」のみ（超過が無ければ表示しない）。
   const { data: pendingUsage } = await supabase
     .from("usage_ledger")
     .select("event_id, quantity, events(name)")
@@ -201,12 +201,13 @@ export default async function PlanPage() {
     existing.count += row.quantity;
     pendingByEvent.set(row.event_id, existing);
   }
-  const pendingEstimates = Array.from(pendingByEvent.entries()).map(([eventId, v]) => {
-    const overageCount = Math.max(v.count - (pricing?.included_participants ?? 0), 0);
-    const overageAmount = overageCount * (pricing?.overage_unit_yen ?? 0);
-    const total = (pricing?.base_fee_yen ?? 0) + overageAmount;
-    return { eventId, name: v.name, count: v.count, overageCount, total };
-  });
+  const pendingEstimates = Array.from(pendingByEvent.entries())
+    .map(([eventId, v]) => {
+      const overageCount = Math.max(v.count - (pricing?.included_participants ?? 0), 0);
+      const overageAmount = overageCount * (pricing?.overage_unit_yen ?? 0);
+      return { eventId, name: v.name, count: v.count, overageCount, total: overageAmount };
+    })
+    .filter((e) => e.overageCount > 0);
 
   const INVOICE_STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
     draft: { label: "下書き", variant: "outline" },
@@ -216,10 +217,14 @@ export default async function PlanPage() {
     refunded: { label: "返金済み", variant: "outline" },
   };
 
+  const CHARGE_KIND_LABEL: Record<string, string> = { base_fee: "基本料金", overage: "超過分" };
+
+  // 超過0件の確認済みマーカー行（total_amount_yen=0）は請求として意味を持たないため表示しない。
   const { data: invoices } = await supabase
     .from("service_invoices")
-    .select("id, event_id, total_amount_yen, status, created_at, events(name)")
+    .select("id, event_id, charge_kind, total_amount_yen, status, created_at, events(name)")
     .eq("service_contract_id", contract.id)
+    .gt("total_amount_yen", 0)
     .order("created_at", { ascending: false });
 
   return (
@@ -233,7 +238,7 @@ export default async function PlanPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">
-              通常プランのご利用には、お支払い方法の登録が必須です。登録が完了するまで、このページ以外の機能はご利用いただけません（カード登録時に課金は発生しません。実際の請求はイベント終了日を起点に自動で行われます）。
+              通常プランのご利用には、お支払い方法の登録が必須です。登録が完了するまで、このページ以外の機能はご利用いただけません（カード登録時に課金は発生しません。実際の請求はイベント作成時（基本料金）とイベント終了日起点（超過分）で自動的に行われます）。
             </p>
             <form action={startCardRegistration}>
               <Button type="submit" className="self-start">
@@ -254,9 +259,8 @@ export default async function PlanPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="text-xs text-muted-foreground">
-            料金はイベントごとに、そのイベント終了日を起点として自動的に確定・課金されます（基本料金¥
-            {(pricing?.base_fee_yen ?? 0).toLocaleString("ja-JP")}／{pricing?.included_participants ?? 30}社まで、以降1社¥
-            {pricing?.overage_unit_yen ?? 0}）。
+            基本料金（¥{(pricing?.base_fee_yen ?? 0).toLocaleString("ja-JP")}）はイベント作成時に即時課金されます。{pricing?.included_participants ?? 30}
+            社を超える参加社数分（1社¥{pricing?.overage_unit_yen ?? 0}）は、イベント終了日を起点に自動的に追加課金されます。
           </p>
           <div className="flex items-center gap-3">
             <p className="text-xs text-muted-foreground">
@@ -282,17 +286,17 @@ export default async function PlanPage() {
 
       {pendingEstimates.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">開催中のイベント（見込み金額）</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground">超過分の見込み金額（終了日に追加課金）</h2>
           {pendingEstimates.map((e) => (
             <Card key={e.eventId}>
               <CardContent className="flex items-center justify-between py-3 text-sm">
                 <span>{e.name}</span>
-                <span className="text-muted-foreground">{e.count}社</span>
+                <span className="text-muted-foreground">{e.count}社（超過{e.overageCount}社）</span>
                 <span className="font-medium">¥{e.total.toLocaleString("ja-JP")}</span>
               </CardContent>
             </Card>
           ))}
-          <p className="text-xs text-muted-foreground">イベント終了日を過ぎると自動的に金額が確定し、課金されます。</p>
+          <p className="text-xs text-muted-foreground">イベント終了日を過ぎると超過分の金額が自動的に確定し、課金されます。</p>
         </div>
       )}
 
@@ -305,7 +309,10 @@ export default async function PlanPage() {
             return (
               <Card key={inv.id}>
                 <CardContent className="flex items-center justify-between py-3 text-sm">
-                  <span className="text-muted-foreground">{event?.name ?? "（不明なイベント）"}</span>
+                  <span className="text-muted-foreground">
+                    {event?.name ?? "（不明なイベント）"}
+                    <span className="ml-1 text-xs">（{CHARGE_KIND_LABEL[inv.charge_kind] ?? inv.charge_kind}）</span>
+                  </span>
                   <span className="font-medium">¥{inv.total_amount_yen.toLocaleString("ja-JP")}</span>
                   <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
                 </CardContent>

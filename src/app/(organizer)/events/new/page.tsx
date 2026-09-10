@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { createEvent } from "../actions";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,16 @@ import { Label } from "@/components/ui/label";
 export default async function NewEventPage() {
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
+
+  // プラン未選択（契約なし）の組織はまずプランを選んでもらう。
+  const supabase = await createClient();
+  const { data: contract } = await supabase
+    .from("service_contracts")
+    .select("id")
+    .eq("organizer_organization_id", context.organizationId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!contract) redirect("/plan");
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6">
@@ -35,7 +46,7 @@ export default async function NewEventPage() {
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="end_date">終了日</Label>
-                <Input id="end_date" type="date" name="end_date" />
+                <Input id="end_date" type="date" name="end_date" required />
               </div>
             </div>
             <Button type="submit" className="self-start">

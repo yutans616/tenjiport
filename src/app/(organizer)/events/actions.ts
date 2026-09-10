@@ -3,7 +3,20 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
+import { attemptCharge, type ServiceInvoiceRow } from "@/lib/billing/runEventBilling";
+
+// イベント作成時の基本料金課金に失敗した場合のロールバック。events・service_invoicesとも
+// 一般ユーザー（RLS）にはDELETE権限が無い（eventsはRLS上そもそも削除ポリシーが無く、
+// service_invoicesはSELECTのみ）ため、service roleで行う。また、service_invoicesが
+// events.idを参照しているため、先に請求行を削除してからでないとevents削除が
+// 外部キー制約違反で失敗する。
+async function rollbackEventCreation(eventId: string) {
+  const serviceClient = createServiceRoleClient();
+  await serviceClient.from("service_invoices").delete().eq("event_id", eventId);
+  await serviceClient.from("events").delete().eq("id", eventId);
+}
 
 function parseFormFields(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -13,6 +26,9 @@ function parseFormFields(formData: FormData) {
 
   if (!name) {
     throw new Error("イベント名は必須です。");
+  }
+  if (!endDate) {
+    throw new Error("終了日は必須です。");
   }
 
   return { name, venue, start_date: startDate, end_date: endDate };
@@ -25,8 +41,21 @@ export async function createEvent(formData: FormData) {
     return;
   }
 
-  const fields = parseFormFields(formData);
   const supabase = await createClient();
+
+  // プラン未選択（契約なし）の組織はイベントを作成できない（/plan へ誘導する）。
+  const { data: contract } = await supabase
+    .from("service_contracts")
+    .select("id, plan_type")
+    .eq("organizer_organization_id", context.organizationId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!contract) {
+    redirect("/plan");
+    return;
+  }
+
+  const fields = parseFormFields(formData);
 
   const { data: event, error } = await supabase
     .from("events")
@@ -36,6 +65,29 @@ export async function createEvent(formData: FormData) {
 
   if (error || !event) {
     throw new Error(`イベントの作成に失敗しました: ${error?.message}`);
+  }
+
+  // 通常プランはイベント作成時に基本料金を即時課金する（成功しなければ作成をロールバックする）。
+  if (contract.plan_type === "standard") {
+    const { data: invoice, error: invoiceError } = await supabase.rpc("charge_event_base_fee", {
+      p_event_id: event.id,
+    });
+    if (invoiceError || !invoice) {
+      await rollbackEventCreation(event.id);
+      throw new Error(`基本料金の確定に失敗しました: ${invoiceError?.message ?? "unknown error"}`);
+    }
+
+    const result = await attemptCharge(invoice as ServiceInvoiceRow, event.name, false);
+    const succeeded =
+      result.outcome === "skipped_zero_amount" ||
+      (result.outcome === "charge_attempted" && result.paymentIntentStatus === "succeeded");
+    if (!succeeded) {
+      await rollbackEventCreation(event.id);
+      if (result.outcome === "no_payment_method") {
+        throw new Error("お支払い方法が登録されていません。設定画面からカードを登録してください。");
+      }
+      throw new Error("基本料金のお支払いに失敗しました。カード情報をご確認のうえ再度お試しください。");
+    }
   }
 
   await supabase.from("audit_logs").insert({

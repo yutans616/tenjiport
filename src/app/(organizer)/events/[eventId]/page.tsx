@@ -57,7 +57,7 @@ export default async function EventDetailPage({
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="end_date">終了日</Label>
-                <Input id="end_date" type="date" name="end_date" defaultValue={event.end_date ?? ""} />
+                <Input id="end_date" type="date" name="end_date" defaultValue={event.end_date ?? ""} required />
               </div>
             </div>
             <div className="grid gap-1.5">
