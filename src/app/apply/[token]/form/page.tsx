@@ -69,6 +69,16 @@ export default async function ApplyFormPage({
 
   const draft = draftRows[0];
 
+  const { data: availabilityRows } = await supabase.rpc("get_choice_availability", { p_event_id: event.id });
+  const availability = (
+    (availabilityRows ?? []) as { field_key: string; choice_label: string; capacity: number; taken_count: number }[]
+  ).map((r) => ({
+    fieldKey: r.field_key,
+    choiceLabel: r.choice_label,
+    capacity: r.capacity,
+    takenCount: r.taken_count,
+  }));
+
   let pendingRevisionComment: string | null = null;
   if (draft.version_number > 1) {
     const { data: previousVersion } = await supabase
@@ -107,6 +117,7 @@ export default async function ApplyFormPage({
         sections={sections ?? []}
         initialAnswers={(draft.data_snapshot_json as Record<string, unknown>) ?? {}}
         doneHref={`/apply/${token}/done`}
+        availability={availability}
       />
     </main>
   );

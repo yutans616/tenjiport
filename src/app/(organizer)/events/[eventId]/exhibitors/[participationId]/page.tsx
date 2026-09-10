@@ -50,11 +50,20 @@ export default async function ExhibitorDetailPage({
 
   const { data: participation } = await supabase
     .from("event_participations")
-    .select("id, status, exhibitor_profiles(brand_name, company_name, default_contact_email)")
+    .select("id, status, resolved_price_yen, exhibitor_profiles(brand_name, company_name, default_contact_email)")
     .eq("id", participationId)
     .eq("event_id", eventId)
     .single();
   if (!participation) notFound();
+
+  const { data: invoices } = await supabase
+    .from("exhibitor_invoices")
+    .select("id, amount_yen, payment_status, created_at")
+    .eq("event_participation_id", participationId)
+    .order("created_at", { ascending: false });
+  const latestInvoice = invoices?.[0];
+  const priceMismatch =
+    participation.resolved_price_yen != null && latestInvoice != null && latestInvoice.amount_yen !== participation.resolved_price_yen;
 
   const profile = Array.isArray(participation.exhibitor_profiles)
     ? participation.exhibitor_profiles[0]
@@ -126,6 +135,23 @@ export default async function ExhibitorDetailPage({
           />
         </div>
       </div>
+
+      {participation.resolved_price_yen != null && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">コマ・オプション料金（フォームの選択内容から自動計算）</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <p className="text-lg font-semibold">¥{participation.resolved_price_yen.toLocaleString("ja-JP")}</p>
+            {priceMismatch && latestInvoice && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-400">
+                選択内容の金額（¥{participation.resolved_price_yen.toLocaleString("ja-JP")}）と、発行済みの請求書（¥
+                {latestInvoice.amount_yen.toLocaleString("ja-JP")}）の金額が一致しません。出展者が再提出で選択内容を変更した可能性があります。必要であれば請求書側で「内容を訂正する」から金額を修正してください。
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {ledgerRows && ledgerRows.length > 0 && (
         <Card>

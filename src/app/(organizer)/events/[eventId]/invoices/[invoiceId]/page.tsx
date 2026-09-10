@@ -34,7 +34,7 @@ export default async function InvoiceDetailPage({
   const { data: invoice } = await supabase
     .from("exhibitor_invoices")
     .select(
-      "id, event_participation_id, invoice_file_id, amount_yen, due_date, invoice_ack_status, invoice_ack_at, payment_status, paid_at, organizer_internal_memo, event_participations(exhibitor_profiles(brand_name, company_name)), file_assets(filename)",
+      "id, event_participation_id, invoice_file_id, amount_yen, due_date, invoice_ack_status, invoice_ack_at, payment_status, paid_at, organizer_internal_memo, event_participations(resolved_price_yen, exhibitor_profiles(brand_name, company_name)), file_assets(filename)",
     )
     .eq("id", invoiceId)
     .single();
@@ -50,6 +50,8 @@ export default async function InvoiceDetailPage({
       ? participation.exhibitor_profiles[0]
       : participation.exhibitor_profiles
     : null;
+  const priceMismatch =
+    participation?.resolved_price_yen != null && participation.resolved_price_yen !== invoice.amount_yen;
 
   const { data: changeLogs } = await supabase
     .from("invoice_change_logs")
@@ -85,6 +87,12 @@ export default async function InvoiceDetailPage({
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {priceMismatch && participation && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-400">
+              フォームの選択内容による金額（¥{participation.resolved_price_yen!.toLocaleString("ja-JP")}）と、この請求書の金額（¥
+              {invoice.amount_yen.toLocaleString("ja-JP")}）が一致しません。出展者が再提出で選択内容を変更した可能性があります。
+            </div>
+          )}
           {invoice.payment_status === "unpaid" && (
             <form action={resendInvoiceReminderAction.bind(null, eventId, invoiceId)}>
               <Button type="submit" variant="outline" size="sm" className="self-start">

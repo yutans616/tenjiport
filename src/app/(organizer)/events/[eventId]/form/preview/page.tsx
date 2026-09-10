@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+type Choice = string | { label: string; price_yen: number; capacity: number | null };
+
 type FormField = {
   id: string;
   key: string;
@@ -18,8 +20,19 @@ type FormField = {
   required: boolean;
   help_text: string | null;
   order: number;
-  options_json: { choices?: string[] } | null;
+  options_json: { choices?: Choice[] } | null;
 };
+
+function choiceLabel(c: Choice) {
+  return typeof c === "string" ? c : c.label;
+}
+
+function choiceDisplayText(c: Choice) {
+  if (typeof c === "string") return c;
+  const price = c.price_yen > 0 ? `¥${c.price_yen.toLocaleString("ja-JP")}` : "無料";
+  const capacity = c.capacity != null ? `・在庫${c.capacity}` : "";
+  return `${c.label}（${price}${capacity}）`;
+}
 
 type FormSection = {
   id: string;
@@ -201,8 +214,8 @@ function PreviewFieldInput({ field }: { field: FormField }) {
           </SelectTrigger>
           <SelectContent>
             {choices.map((choice) => (
-              <SelectItem key={choice} value={choice}>
-                {choice}
+              <SelectItem key={choiceLabel(choice)} value={choiceLabel(choice)}>
+                {choiceDisplayText(choice)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -218,9 +231,9 @@ function PreviewFieldInput({ field }: { field: FormField }) {
         {label}
         <div className="flex flex-col gap-2">
           {choices.map((choice) => (
-            <label key={choice} className="flex items-center gap-2 text-sm">
+            <label key={choiceLabel(choice)} className="flex items-center gap-2 text-sm">
               <Checkbox disabled />
-              {choice}
+              {choiceDisplayText(choice)}
             </label>
           ))}
         </div>

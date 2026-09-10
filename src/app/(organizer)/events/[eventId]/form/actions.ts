@@ -130,16 +130,36 @@ export async function addField(eventId: string, sectionId: string, formData: For
   const required = formData.get("required") === "on";
   const helpText = String(formData.get("help_text") ?? "").trim() || null;
   const optionsRaw = String(formData.get("options") ?? "").trim();
+  const pricedOptionsRaw = String(formData.get("priced_options") ?? "").trim();
 
   if (!label) throw new Error("項目名は必須です。");
   if (!FIELD_TYPES.includes(type as (typeof FIELD_TYPES)[number])) {
     throw new Error("不正な項目タイプです。");
   }
 
-  const optionsJson =
-    (type === "single_select" || type === "multi_select") && optionsRaw
-      ? { choices: optionsRaw.split(",").map((s) => s.trim()).filter(Boolean) }
-      : null;
+  let optionsJson: { choices: unknown[] } | null = null;
+  if (type === "single_select" || type === "multi_select") {
+    if (pricedOptionsRaw) {
+      const choices = pricedOptionsRaw
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [labelPart, pricePart, capacityPart] = line.split(",").map((s) => s.trim());
+          const priceYen = pricePart ? Number(pricePart.replace(/[^\d]/g, "")) : 0;
+          const capacity = capacityPart ? Number(capacityPart.replace(/[^\d]/g, "")) : null;
+          return {
+            label: labelPart,
+            price_yen: Number.isFinite(priceYen) ? priceYen : 0,
+            capacity: capacity !== null && Number.isFinite(capacity) ? capacity : null,
+          };
+        })
+        .filter((c) => c.label);
+      if (choices.length > 0) optionsJson = { choices };
+    } else if (optionsRaw) {
+      optionsJson = { choices: optionsRaw.split(",").map((s) => s.trim()).filter(Boolean) };
+    }
+  }
 
   const key = `f_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 

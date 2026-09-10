@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+type Choice = string | { label: string; price_yen: number; capacity: number | null };
+
 type FormField = {
   id: string;
   key: string;
@@ -20,7 +22,7 @@ type FormField = {
   required: boolean;
   help_text: string | null;
   order: number;
-  options_json: { choices?: string[] } | null;
+  options_json: { choices?: Choice[] } | null;
 };
 
 type FormSection = {
@@ -30,18 +32,32 @@ type FormSection = {
   form_fields: FormField[];
 };
 
+export type ChoiceAvailability = { fieldKey: string; choiceLabel: string; capacity: number; takenCount: number };
+
 const UNSUPPORTED_TYPES = new Set(["repeating"]);
+
+function choiceLabel(c: Choice) {
+  return typeof c === "string" ? c : c.label;
+}
+
+function choiceDisplayText(c: Choice) {
+  if (typeof c === "string") return c;
+  const price = c.price_yen > 0 ? `¥${c.price_yen.toLocaleString("ja-JP")}` : "無料";
+  return `${c.label}（${price}）`;
+}
 
 export function SubmissionForm({
   submissionVersionId,
   sections,
   initialAnswers,
   doneHref,
+  availability = [],
 }: {
   submissionVersionId: string;
   sections: FormSection[];
   initialAnswers: Record<string, unknown>;
   doneHref: string;
+  availability?: ChoiceAvailability[];
 }) {
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
@@ -117,6 +133,7 @@ export function SubmissionForm({
                     value={answers[field.key]}
                     onChange={updateAnswer}
                     submissionVersionId={submissionVersionId}
+                    availability={availability}
                   />
                 ))}
             </CardContent>
@@ -152,12 +169,19 @@ function FieldInput({
   value,
   onChange,
   submissionVersionId,
+  availability,
 }: {
   field: FormField;
   value: unknown;
   onChange: (key: string, value: unknown) => void;
   submissionVersionId: string;
+  availability: ChoiceAvailability[];
 }) {
+  function isSoldOut(c: Choice) {
+    if (typeof c === "string") return false;
+    const a = availability.find((x) => x.fieldKey === field.key && x.choiceLabel === c.label);
+    return !!a && a.takenCount >= a.capacity;
+  }
   const label = (
     <Label>
       {field.label}
@@ -254,11 +278,15 @@ function FieldInput({
             <SelectValue placeholder="選択してください" />
           </SelectTrigger>
           <SelectContent>
-            {choices.map((choice) => (
-              <SelectItem key={choice} value={choice}>
-                {choice}
-              </SelectItem>
-            ))}
+            {choices.map((choice) => {
+              const soldOut = isSoldOut(choice);
+              return (
+                <SelectItem key={choiceLabel(choice)} value={choiceLabel(choice)} disabled={soldOut}>
+                  {choiceDisplayText(choice)}
+                  {soldOut && "（満枠）"}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>
@@ -272,20 +300,26 @@ function FieldInput({
       <div className="grid gap-2">
         {label}
         <div className="flex flex-col gap-2">
-          {choices.map((choice) => (
-            <label key={choice} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={selected.has(choice)}
-                onCheckedChange={(checked) => {
-                  const next = new Set(selected);
-                  if (checked === true) next.add(choice);
-                  else next.delete(choice);
-                  onChange(field.key, Array.from(next));
-                }}
-              />
-              {choice}
-            </label>
-          ))}
+          {choices.map((choice) => {
+            const l = choiceLabel(choice);
+            const soldOut = isSoldOut(choice) && !selected.has(l);
+            return (
+              <label key={l} className={`flex items-center gap-2 text-sm ${soldOut ? "opacity-50" : ""}`}>
+                <Checkbox
+                  checked={selected.has(l)}
+                  disabled={soldOut}
+                  onCheckedChange={(checked) => {
+                    const next = new Set(selected);
+                    if (checked === true) next.add(l);
+                    else next.delete(l);
+                    onChange(field.key, Array.from(next));
+                  }}
+                />
+                {choiceDisplayText(choice)}
+                {soldOut && "（満枠）"}
+              </label>
+            );
+          })}
         </div>
       </div>
     );
