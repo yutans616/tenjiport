@@ -27,7 +27,7 @@ export default async function ExhibitorsPage({
 
   const { data: participations } = await supabase
     .from("event_participations")
-    .select("id, status, group_tags, created_at, resolved_price_yen, exhibitor_profiles(brand_name, company_name)")
+    .select("id, status, group_tags, created_at, resolved_price_yen, organizer_note, exhibitor_profiles(brand_name, company_name)")
     .eq("event_id", eventId)
     .order("created_at", { ascending: false });
 
@@ -44,6 +44,7 @@ export default async function ExhibitorsPage({
 
   let formColumns: { key: string; label: string }[] = [];
   const answersByParticipation = new Map<string, Record<string, unknown>>();
+  const quantitiesByParticipation = new Map<string, Record<string, Record<string, number>>>();
   if (latestForm) {
     const { data: sections } = await supabase
       .from("form_sections")
@@ -60,12 +61,13 @@ export default async function ExhibitorsPage({
   if (participationIds.length > 0) {
     const { data: versions } = await supabase
       .from("submission_versions")
-      .select("event_participation_id, version_number, data_snapshot_json")
+      .select("event_participation_id, version_number, data_snapshot_json, quantities_json")
       .in("event_participation_id", participationIds)
       .order("version_number", { ascending: false });
     for (const v of versions ?? []) {
       if (!answersByParticipation.has(v.event_participation_id)) {
         answersByParticipation.set(v.event_participation_id, (v.data_snapshot_json as Record<string, unknown>) ?? {});
+        quantitiesByParticipation.set(v.event_participation_id, (v.quantities_json as Record<string, Record<string, number>>) ?? {});
       }
     }
   }
@@ -142,7 +144,9 @@ export default async function ExhibitorsPage({
       announcementTotal: totalByParticipation.get(p.id) ?? 0,
       announcementAcked: ackByParticipation.get(p.id) ?? 0,
       resolvedPriceYen: p.resolved_price_yen,
+      organizerNote: p.organizer_note,
       answers: answersByParticipation.get(p.id) ?? {},
+      quantities: quantitiesByParticipation.get(p.id) ?? {},
     };
   });
 

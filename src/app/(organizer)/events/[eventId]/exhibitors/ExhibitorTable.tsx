@@ -11,6 +11,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { MultiSelectFilter } from "./MultiSelectFilter";
 import { ColumnSelector, type ColumnDef } from "./ColumnSelector";
 import { renderAnswerValue } from "./answerUtils";
+import { OrganizerNoteCell } from "./OrganizerNoteCell";
 
 export type ExhibitorRow = {
   id: string;
@@ -22,7 +23,9 @@ export type ExhibitorRow = {
   announcementTotal: number;
   announcementAcked: number;
   resolvedPriceYen: number | null;
+  organizerNote: string | null;
   answers: Record<string, unknown>;
+  quantities: Record<string, Record<string, number>>;
 };
 
 const RESOLVED_PRICE_COLUMN_KEY = "__resolved_price_yen";
@@ -121,7 +124,7 @@ export function ExhibitorTable({
     if (key === RESOLVED_PRICE_COLUMN_KEY) {
       return row.resolvedPriceYen != null ? `¥${row.resolvedPriceYen.toLocaleString("ja-JP")}` : "-";
     }
-    return renderAnswerValue(row.answers[key]);
+    return renderAnswerValue(row.answers[key], row.quantities[key]);
   }
 
   const statusesPresent = useMemo(() => Array.from(new Set(rows.map((r) => r.status))), [rows]);
@@ -253,6 +256,7 @@ export function ExhibitorTable({
               {visibleColumns.map((c) => (
                 <TableHead key={c.key}>{c.label}</TableHead>
               ))}
+              <TableHead>備考</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -297,6 +301,9 @@ export function ExhibitorTable({
                       {columnCellValue(r, c.key)}
                     </TableCell>
                   ))}
+                  <TableCell>
+                    <OrganizerNoteCell eventId={eventId} participationId={r.id} initialNote={r.organizerNote} />
+                  </TableCell>
                 </TableRow>
               );
             })}

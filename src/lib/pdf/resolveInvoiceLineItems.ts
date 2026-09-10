@@ -9,8 +9,8 @@ function isPricedChoice(c: unknown): c is PricedChoice {
 }
 
 // 出展者の最新提出内容から、価格付き選択肢（コマ選択等）ごとの品目・金額を復元する。
-// 単一選択・複数選択いずれでも、選択された各選択肢を1行（数量1）として扱う——
-// 複数のコマを選んだ場合はその分だけ行が増える。
+// 単一選択・複数選択いずれでも、選択された各選択肢を1行として扱い、数量は
+// quantities_json（選択肢ラベルごとの個数。同一選択肢を複数個購入した場合など）から復元する。
 // 復元結果の合計が実際の請求金額と一致しない場合（主催者が金額を手動訂正した等）は、
 // 内訳が実態と食い違うPDFを出さないよう、汎用の1行（"出展料"）にフォールバックする。
 export async function resolveInvoiceLineItems(
@@ -22,7 +22,7 @@ export async function resolveInvoiceLineItems(
 
   const { data: versions } = await supabase
     .from("submission_versions")
-    .select("form_id, data_snapshot_json")
+    .select("form_id, data_snapshot_json, quantities_json")
     .eq("event_participation_id", participationId)
     .order("version_number", { ascending: false })
     .limit(1);
@@ -36,6 +36,7 @@ export async function resolveInvoiceLineItems(
 
   const fields = (sections ?? []).flatMap((s) => s.form_fields ?? []);
   const answers = (latest.data_snapshot_json as Record<string, unknown>) ?? {};
+  const quantities = (latest.quantities_json as Record<string, Record<string, number>>) ?? {};
 
   const items: InvoiceLineItem[] = [];
   for (const field of fields) {
@@ -56,7 +57,11 @@ export async function resolveInvoiceLineItems(
 
     for (const label of selectedLabels) {
       const choice = pricedChoices.find((c) => c.label === label);
-      if (choice) items.push({ label: choice.label, priceYen: choice.price_yen, quantity: 1 });
+      if (choice) {
+        const rawQty = quantities[field.key]?.[label];
+        const quantity = Number.isFinite(rawQty) && (rawQty as number) >= 1 ? Math.floor(rawQty as number) : 1;
+        items.push({ label: choice.label, priceYen: choice.price_yen, quantity });
+      }
     }
   }
 

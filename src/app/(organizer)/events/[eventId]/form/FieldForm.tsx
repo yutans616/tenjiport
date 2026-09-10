@@ -59,11 +59,20 @@ export function FieldForm({
               name="priced_options"
               rows={3}
               defaultValue={initial?.pricedOptions}
-              placeholder={"1行に1つ、「選択肢名,価格円,在庫上限」の形式で入力（在庫上限は空欄で無制限）\n例：コマA(3m×3m),15000,10\nコマB(2m×2m),8000,"}
+              placeholder={"例：コマA(3m×3m),15000,10\nコマB(2m×2m),8000,"}
             />
-            <p className="text-xs text-muted-foreground">
-              入力すると、出展者の選択に応じた金額が自動計算され、出展者詳細ページに表示されます。
-            </p>
+            <div className="rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+              <p>
+                1行に1つ、<strong className="text-foreground">「選択肢名,価格円,在庫上限」</strong>
+                の形式で入力してください（在庫上限は空欄で無制限）。
+              </p>
+              <p className="mt-1">
+                入力すると、出展者の選択（数量含む）に応じた金額が自動計算され、出展者一覧・請求書に反映されます。
+              </p>
+              <p className="mt-1 font-medium text-foreground">
+                ※価格は請求書発行に使用されるため、必ず税込金額で入力してください。
+              </p>
+            </div>
           </div>
         </>
       )}

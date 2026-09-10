@@ -116,6 +116,7 @@ export default async function ApplyFormPage({
         submissionVersionId={draft.submission_version_id}
         sections={sections ?? []}
         initialAnswers={(draft.data_snapshot_json as Record<string, unknown>) ?? {}}
+        initialQuantities={(draft.quantities_json as Record<string, Record<string, number>>) ?? {}}
         doneHref={`/apply/${token}/done`}
         availability={availability}
       />

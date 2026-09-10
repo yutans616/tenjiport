@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, FileUp } from "lucide-react";
 import { renderAnswerValue } from "../answerUtils";
+import { OrganizerNoteCell } from "../OrganizerNoteCell";
 
 const STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   draft: { label: "下書き", variant: "outline" },
@@ -37,7 +38,7 @@ export default async function ExhibitorDetailPage({
 
   const { data: participation } = await supabase
     .from("event_participations")
-    .select("id, status, resolved_price_yen, exhibitor_profiles(brand_name, company_name, default_contact_email)")
+    .select("id, status, resolved_price_yen, organizer_note, exhibitor_profiles(brand_name, company_name, default_contact_email)")
     .eq("id", participationId)
     .eq("event_id", eventId)
     .single();
@@ -58,11 +59,12 @@ export default async function ExhibitorDetailPage({
 
   const { data: versions } = await supabase
     .from("submission_versions")
-    .select("id, version_number, status, data_snapshot_json, submitted_at, form_id")
+    .select("id, version_number, status, data_snapshot_json, quantities_json, submitted_at, form_id")
     .eq("event_participation_id", participationId)
     .order("version_number", { ascending: false });
 
   const latest = versions?.[0];
+  const latestQuantities = (latest?.quantities_json as Record<string, Record<string, number>>) ?? {};
 
   let fieldLabelByKey = new Map<string, string>();
   if (latest) {
@@ -140,6 +142,21 @@ export default async function ExhibitorDetailPage({
         </Card>
       )}
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">備考（主催者専用メモ・出展者には表示されません）</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <OrganizerNoteCell
+            eventId={eventId}
+            participationId={participationId}
+            initialNote={participation.organizer_note}
+            rows={3}
+            compact={false}
+          />
+        </CardContent>
+      </Card>
+
       {ledgerRows && ledgerRows.length > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -200,7 +217,7 @@ export default async function ExhibitorDetailPage({
                 {Object.entries((latest.data_snapshot_json as Record<string, unknown>) ?? {}).map(([key, value]) => (
                   <div key={key} className="flex justify-between gap-4 border-b py-1.5 last:border-0">
                     <dt className="text-muted-foreground">{fieldLabelByKey.get(key) ?? key}</dt>
-                    <dd className="text-right">{renderAnswerValue(value)}</dd>
+                    <dd className="text-right">{renderAnswerValue(value, latestQuantities[key])}</dd>
                   </div>
                 ))}
               </dl>

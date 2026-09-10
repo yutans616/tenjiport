@@ -56,6 +56,30 @@ export async function confirmSubmissionAction(eventId: string, participationId: 
   revalidatePath(`/events/${eventId}/exhibitors/${participationId}`);
 }
 
+export type UpdateNoteResult = { ok: true } | { ok: false; error: string };
+
+// 出展者一覧・詳細ページの主催者専用メモ（出展者には表示されない）。
+export async function updateOrganizerNote(
+  eventId: string,
+  participationId: string,
+  note: string,
+): Promise<UpdateNoteResult> {
+  const context = await getOrganizerContext();
+  if (!context) return { ok: false, error: "ログインが必要です。" };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("event_participations")
+    .update({ organizer_note: note.trim() || null })
+    .eq("id", participationId)
+    .eq("event_id", eventId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/events/${eventId}/exhibitors`);
+  revalidatePath(`/events/${eventId}/exhibitors/${participationId}`);
+  return { ok: true };
+}
+
 // 重複・テスト登録の課金訂正。既存のUsageLedger行は変更せず、理由付きの補正行を追加する。
 export async function addUsageCorrectionAction(eventId: string, participationId: string, formData: FormData) {
   const context = await getOrganizerContext();

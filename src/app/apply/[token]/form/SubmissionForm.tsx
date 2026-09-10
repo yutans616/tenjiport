@@ -50,17 +50,20 @@ export function SubmissionForm({
   submissionVersionId,
   sections,
   initialAnswers,
+  initialQuantities,
   doneHref,
   availability = [],
 }: {
   submissionVersionId: string;
   sections: FormSection[];
   initialAnswers: Record<string, unknown>;
+  initialQuantities: Record<string, Record<string, number>>;
   doneHref: string;
   availability?: ChoiceAvailability[];
 }) {
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
+  const [quantities, setQuantities] = useState<Record<string, Record<string, number>>>(initialQuantities);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,19 +77,29 @@ export function SubmissionForm({
     };
   }, []);
 
-  function updateAnswer(key: string, value: unknown) {
-    const next = { ...answers, [key]: value };
-    setAnswers(next);
+  function scheduleSave(nextAnswers: Record<string, unknown>, nextQuantities: Record<string, Record<string, number>>) {
     setSaveState("saving");
-
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       const { error } = await supabase
         .from("submission_versions")
-        .update({ data_snapshot_json: next })
+        .update({ data_snapshot_json: nextAnswers, quantities_json: nextQuantities })
         .eq("id", submissionVersionId);
       setSaveState(error ? "error" : "saved");
     }, 800);
+  }
+
+  function updateAnswer(key: string, value: unknown) {
+    const next = { ...answers, [key]: value };
+    setAnswers(next);
+    scheduleSave(next, quantities);
+  }
+
+  function updateQuantity(fieldKey: string, choiceLbl: string, qty: number) {
+    const nextFieldQty = { ...(quantities[fieldKey] ?? {}), [choiceLbl]: qty };
+    const next = { ...quantities, [fieldKey]: nextFieldQty };
+    setQuantities(next);
+    scheduleSave(answers, next);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -94,7 +107,7 @@ export function SubmissionForm({
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const result = await submitExhibitorForm(submissionVersionId, answers, honeypot);
+    const result = await submitExhibitorForm(submissionVersionId, answers, quantities, honeypot);
 
     setIsSubmitting(false);
     if (!result.ok) {
@@ -132,6 +145,8 @@ export function SubmissionForm({
                     field={field}
                     value={answers[field.key]}
                     onChange={updateAnswer}
+                    quantities={quantities[field.key]}
+                    onQuantityChange={updateQuantity}
                     submissionVersionId={submissionVersionId}
                     availability={availability}
                   />
@@ -164,19 +179,56 @@ export function SubmissionForm({
   );
 }
 
+function QuantityPicker({
+  value,
+  onChange,
+  max,
+}: {
+  value: number;
+  onChange: (qty: number) => void;
+  max?: number;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Label className="text-xs text-muted-foreground">数量</Label>
+      <Input
+        type="number"
+        min={1}
+        max={max}
+        value={value}
+        onChange={(e) => {
+          const n = Math.floor(Number(e.target.value));
+          onChange(Number.isFinite(n) && n >= 1 ? n : 1);
+        }}
+        className="w-20"
+      />
+    </div>
+  );
+}
+
 function FieldInput({
   field,
   value,
   onChange,
+  quantities,
+  onQuantityChange,
   submissionVersionId,
   availability,
 }: {
   field: FormField;
   value: unknown;
   onChange: (key: string, value: unknown) => void;
+  quantities: Record<string, number> | undefined;
+  onQuantityChange: (fieldKey: string, choiceLabel: string, qty: number) => void;
   submissionVersionId: string;
   availability: ChoiceAvailability[];
 }) {
+  function remainingFor(c: Choice): number | undefined {
+    if (typeof c === "string" || c.capacity == null) return undefined;
+    const a = availability.find((x) => x.fieldKey === field.key && x.choiceLabel === c.label);
+    if (!a) return undefined;
+    return Math.max(1, c.capacity - a.takenCount + (quantities?.[c.label] ?? 0));
+  }
   function isSoldOut(c: Choice) {
     if (typeof c === "string") return false;
     const a = availability.find((x) => x.fieldKey === field.key && x.choiceLabel === c.label);
@@ -270,10 +322,13 @@ function FieldInput({
 
   if (field.type === "single_select") {
     const choices = field.options_json?.choices ?? [];
+    const selectedLabel = (value as string) ?? undefined;
+    const selectedChoice = choices.find((c) => choiceLabel(c) === selectedLabel);
+    const selectedIsPriced = selectedChoice != null && typeof selectedChoice !== "string";
     return (
       <div className="grid gap-1.5">
         {label}
-        <Select value={(value as string) ?? undefined} onValueChange={(v) => onChange(field.key, v)}>
+        <Select value={selectedLabel} onValueChange={(v) => onChange(field.key, v)}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="選択してください" />
           </SelectTrigger>
@@ -289,6 +344,13 @@ function FieldInput({
             })}
           </SelectContent>
         </Select>
+        {selectedIsPriced && selectedLabel && (
+          <QuantityPicker
+            value={quantities?.[selectedLabel] ?? 1}
+            max={remainingFor(selectedChoice)}
+            onChange={(qty) => onQuantityChange(field.key, selectedLabel, qty)}
+          />
+        )}
       </div>
     );
   }
@@ -303,21 +365,31 @@ function FieldInput({
           {choices.map((choice) => {
             const l = choiceLabel(choice);
             const soldOut = isSoldOut(choice) && !selected.has(l);
+            const isPriced = typeof choice !== "string";
             return (
-              <label key={l} className={`flex items-center gap-2 text-sm ${soldOut ? "opacity-50" : ""}`}>
-                <Checkbox
-                  checked={selected.has(l)}
-                  disabled={soldOut}
-                  onCheckedChange={(checked) => {
-                    const next = new Set(selected);
-                    if (checked === true) next.add(l);
-                    else next.delete(l);
-                    onChange(field.key, Array.from(next));
-                  }}
-                />
-                {choiceDisplayText(choice)}
-                {soldOut && "（満枠）"}
-              </label>
+              <div key={l} className={`flex flex-wrap items-center gap-3 text-sm ${soldOut ? "opacity-50" : ""}`}>
+                <label className="flex flex-1 items-center gap-2">
+                  <Checkbox
+                    checked={selected.has(l)}
+                    disabled={soldOut}
+                    onCheckedChange={(checked) => {
+                      const next = new Set(selected);
+                      if (checked === true) next.add(l);
+                      else next.delete(l);
+                      onChange(field.key, Array.from(next));
+                    }}
+                  />
+                  {choiceDisplayText(choice)}
+                  {soldOut && "（満枠）"}
+                </label>
+                {isPriced && selected.has(l) && (
+                  <QuantityPicker
+                    value={quantities?.[l] ?? 1}
+                    max={remainingFor(choice)}
+                    onChange={(qty) => onQuantityChange(field.key, l, qty)}
+                  />
+                )}
+              </div>
             );
           })}
         </div>

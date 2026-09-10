@@ -14,6 +14,7 @@ export type SubmitResult = { ok: true } | { ok: false; error: string };
 export async function submitExhibitorForm(
   submissionVersionId: string,
   answers: Record<string, unknown>,
+  quantities: Record<string, Record<string, number>>,
   honeypot: string,
 ): Promise<SubmitResult> {
   // ハニーポットが埋まっていればBotとみなし、実際には提出せず成功したふりをする
@@ -55,6 +56,7 @@ export async function submitExhibitorForm(
   const { error } = await supabase.rpc("submit_current_version", {
     p_submission_version_id: submissionVersionId,
     p_answers: answers,
+    p_quantities: quantities,
   });
 
   if (error) {
