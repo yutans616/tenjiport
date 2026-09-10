@@ -24,7 +24,17 @@ type AnnualPlanUsageRow = {
   is_over_participant_cap: boolean;
 };
 
-export default async function PlanPage() {
+const BILLING_ERROR_MESSAGE: Record<string, string> = {
+  charge_failed: "基本料金のお支払いに失敗したため、イベントの作成を中止しました。カード情報をご確認のうえ再度お試しください。",
+  confirm_failed: "請求の確定に失敗したため、イベントの作成を中止しました。時間をおいて再度お試しください。",
+};
+
+export default async function PlanPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ billingError?: string }>;
+}) {
+  const { billingError } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
@@ -232,6 +242,12 @@ export default async function PlanPage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
       <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
+
+      {billingError && BILLING_ERROR_MESSAGE[billingError] && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {BILLING_ERROR_MESSAGE[billingError]}
+        </div>
+      )}
 
       {contract.payment_method_status !== "valid" && (
         <Card className="border-destructive/40">

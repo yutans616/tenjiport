@@ -68,13 +68,17 @@ export async function createEvent(formData: FormData) {
   }
 
   // 通常プランはイベント作成時に基本料金を即時課金する（成功しなければ作成をロールバックする）。
+  // ここでの失敗はthrowせず/planへリダイレクトする——Server Actionの未処理エラーは
+  // 「This page couldn't load」という不親切なクラッシュ画面になってしまうため、
+  // カード未登録・決済失敗のどちらも/plan側で分かりやすく案内する。
   if (contract.plan_type === "standard") {
     const { data: invoice, error: invoiceError } = await supabase.rpc("charge_event_base_fee", {
       p_event_id: event.id,
     });
     if (invoiceError || !invoice) {
       await rollbackEventCreation(event.id);
-      throw new Error(`基本料金の確定に失敗しました: ${invoiceError?.message ?? "unknown error"}`);
+      redirect("/plan?billingError=confirm_failed");
+      return;
     }
 
     const result = await attemptCharge(invoice as ServiceInvoiceRow, event.name, false);
@@ -83,10 +87,10 @@ export async function createEvent(formData: FormData) {
       (result.outcome === "charge_attempted" && result.paymentIntentStatus === "succeeded");
     if (!succeeded) {
       await rollbackEventCreation(event.id);
-      if (result.outcome === "no_payment_method") {
-        throw new Error("お支払い方法が登録されていません。設定画面からカードを登録してください。");
-      }
-      throw new Error("基本料金のお支払いに失敗しました。カード情報をご確認のうえ再度お試しください。");
+      // no_payment_method は/plan側の「お支払い方法の登録が必須です」バナーが既に
+      // 理由を説明しているため、専用メッセージはcharge_failedの場合のみ表示する。
+      redirect(result.outcome === "no_payment_method" ? "/plan" : "/plan?billingError=charge_failed");
+      return;
     }
   }
 
