@@ -15,15 +15,31 @@ export default async function NewEventPage() {
   const supabase = await createClient();
   const { data: contract } = await supabase
     .from("service_contracts")
-    .select("id")
+    .select("id, plan_type, pricing_config_id")
     .eq("organizer_organization_id", context.organizationId)
     .eq("status", "active")
     .maybeSingle();
   if (!contract) redirect("/plan");
 
+  let baseFeeYen: number | null = null;
+  if (contract.plan_type === "standard") {
+    const { data: pricing } = await supabase
+      .from("pricing_configs")
+      .select("base_fee_yen")
+      .eq("id", contract.pricing_config_id)
+      .single();
+    baseFeeYen = pricing?.base_fee_yen ?? null;
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6">
       <h1 className="text-xl font-semibold tracking-tight">新規イベント作成</h1>
+
+      {baseFeeYen != null && (
+        <p className="text-xs text-muted-foreground">
+          「作成する」を押すと、基本料金¥{baseFeeYen.toLocaleString("ja-JP")}が登録済みのお支払い方法へ即時課金されます。超過分（含まれる社数を超えた分）はイベント終了日を起点に別途自動課金されます。
+        </p>
+      )}
 
       <Card>
         <CardHeader>

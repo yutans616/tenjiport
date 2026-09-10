@@ -66,7 +66,9 @@ export default async function PlanPage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground">出展者数に応じた従量課金。30社まで9,800円、以降1社300円（テスト価格）。</p>
-              <p className="text-xs text-muted-foreground">開始後、お支払い方法の登録が必須です（登録時に課金は発生しません）。</p>
+              <p className="text-xs text-muted-foreground">
+                開始後、お支払い方法の登録が必須です（登録自体に課金は発生しません）。イベントを作成すると基本料金が即時課金され、超過分はイベント終了日を起点に自動課金されます。
+              </p>
               <form action={startStandardPlanAction}>
                 <Button type="submit">通常プランを開始する</Button>
               </form>
