@@ -9,6 +9,7 @@ import { getOrganizerContext, type OrganizerContext } from "@/lib/organizer/cont
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 import { processPendingNotifications } from "@/lib/notifications/processPendingNotifications";
 import { generateInvoicePdf } from "@/lib/pdf/generateInvoicePdf";
+import { resolveInvoiceLineItems } from "@/lib/pdf/resolveInvoiceLineItems";
 
 async function requireOrganizerEvent(eventId: string) {
   const context = await getOrganizerContext();
@@ -52,15 +53,21 @@ async function generateAndAttachInvoicePdf(params: {
 
     const { data: bankAccount } = await supabase
       .from("organizer_bank_accounts")
-      .select("bank_name, branch_name, account_type, account_number, account_holder_name, qualified_invoice_registration_number")
+      .select(
+        "bank_name, branch_name, account_type, account_number, account_holder_name, qualified_invoice_registration_number, postal_code, address",
+      )
       .eq("organization_id", context.organizationId)
       .maybeSingle();
+
+    const lineItems = await resolveInvoiceLineItems(supabase, participationId, amountYen);
 
     const pdfBuffer = await generateInvoicePdf({
       invoiceNumber,
       issueDate: new Date(),
       dueDate,
       organizerName: context.organizationName,
+      organizerPostalCode: bankAccount?.postal_code ?? null,
+      organizerAddress: bankAccount?.address ?? null,
       registrationNumber: bankAccount?.qualified_invoice_registration_number ?? null,
       bankDetails: bankAccount
         ? {
@@ -72,7 +79,7 @@ async function generateAndAttachInvoicePdf(params: {
           }
         : null,
       exhibitorCompanyName: profile?.company_name ?? "（未設定）",
-      itemDescription: "出展料",
+      lineItems,
       amountYen,
     });
 

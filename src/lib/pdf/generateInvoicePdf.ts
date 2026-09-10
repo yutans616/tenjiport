@@ -1,5 +1,6 @@
 import path from "node:path";
 import PDFDocument from "pdfkit";
+import type { InvoiceLineItem } from "./resolveInvoiceLineItems";
 
 const FONT_REGULAR = path.join(process.cwd(), "src/lib/pdf/fonts/NotoSansJP-Regular.ttf");
 const FONT_BOLD = path.join(process.cwd(), "src/lib/pdf/fonts/NotoSansJP-Bold.ttf");
@@ -18,10 +19,12 @@ export type InvoicePdfData = {
   issueDate: Date;
   dueDate: string | null;
   organizerName: string;
+  organizerPostalCode: string | null;
+  organizerAddress: string | null;
   registrationNumber: string | null;
   bankDetails: InvoicePdfBankDetails | null;
   exhibitorCompanyName: string;
-  itemDescription: string;
+  lineItems: InvoiceLineItem[];
   amountYen: number;
 };
 
@@ -67,30 +70,54 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> 
       doc.font("jp").fontSize(10);
       doc.text(`請求書番号: ${data.invoiceNumber}`, left, doc.y, { width: contentWidth, align: "right" });
       doc.text(`発行日: ${formatDate(data.issueDate)}`, left, doc.y, { width: contentWidth, align: "right" });
+      doc.moveDown(1);
+
+      // 発行元
+      doc.font("jp-bold").fontSize(11).text("発行元", left, doc.y, { width: contentWidth });
+      doc.moveDown(0.3);
+      doc.font("jp").fontSize(10);
+      doc.text(data.organizerName, left, doc.y, { width: contentWidth });
+      if (data.organizerPostalCode) doc.text(`〒${data.organizerPostalCode}`, left, doc.y, { width: contentWidth });
+      if (data.organizerAddress) doc.text(data.organizerAddress, left, doc.y, { width: contentWidth });
+      if (data.registrationNumber) {
+        doc.text(`適格請求書発行事業者登録番号: ${data.registrationNumber}`, left, doc.y, { width: contentWidth });
+      }
       doc.moveDown(1.5);
+
+      rule();
 
       // 宛先
       doc.font("jp-bold").fontSize(15).text(`${data.exhibitorCompanyName} 御中`, left, doc.y, { width: contentWidth });
-      doc.moveDown(0.5);
-      doc.font("jp").fontSize(10).text("下記の通りご請求申し上げます。", left, doc.y, { width: contentWidth });
       doc.moveDown(1.5);
 
+      // 明細（品目・数量・金額）
+      const colItem = contentWidth * 0.55;
+      const colQty = contentWidth * 0.15;
+      const colAmount = contentWidth * 0.3;
+
+      // 各セルはlineBreak:falseで単一行に固定し、行の高さを自前で管理する
+      // （複数のtext()呼び出しが互いのdoc.yを不定に更新し合うのを避けるため）。
+      const rowHeight = 18;
+      doc.font("jp-bold").fontSize(10);
+      const headerY = doc.y;
+      doc.text("品目", left, headerY, { width: colItem, lineBreak: false });
+      doc.text("数量", left + colItem, headerY, { width: colQty, align: "right", lineBreak: false });
+      doc.text("金額（税込）", left + colItem + colQty, headerY, { width: colAmount, align: "right", lineBreak: false });
+      doc.y = headerY + rowHeight;
       rule();
 
-      // 明細
-      doc.font("jp-bold").fontSize(10);
-      doc.text("品目", left, doc.y, { width: contentWidth * 0.7, continued: true });
-      doc.text("金額（税込）", { width: contentWidth * 0.3, align: "right" });
+      doc.font("jp").fontSize(10);
+      for (const item of data.lineItems) {
+        const rowY = doc.y;
+        doc.text(item.label, left, rowY, { width: colItem, lineBreak: false });
+        doc.text(String(item.quantity), left + colItem, rowY, { width: colQty, align: "right", lineBreak: false });
+        doc.text(formatYen(item.priceYen * item.quantity), left + colItem + colQty, rowY, { width: colAmount, align: "right", lineBreak: false });
+        doc.y = rowY + rowHeight;
+      }
       doc.moveDown(0.5);
       rule();
 
-      doc.font("jp").fontSize(11);
-      doc.text(data.itemDescription, left, doc.y, { width: contentWidth * 0.7, continued: true });
-      doc.text(formatYen(data.amountYen), { width: contentWidth * 0.3, align: "right" });
-      doc.moveDown(0.75);
-      rule();
-
-      // 税抜金額・消費税の内訳（税込金額から逆算）
+      // 税抜金額・消費税の内訳（税込合計金額から逆算）
       const subtotal = Math.round(data.amountYen / (1 + TAX_RATE));
       const tax = data.amountYen - subtotal;
       doc.font("jp").fontSize(10);
@@ -120,12 +147,13 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> 
 
       rule();
 
-      doc.font("jp-bold").fontSize(11).text("発行元", left, doc.y, { width: contentWidth });
-      doc.moveDown(0.3);
-      doc.font("jp").fontSize(10).text(data.organizerName, left, doc.y, { width: contentWidth });
-      if (data.registrationNumber) {
-        doc.text(`適格請求書発行事業者登録番号: ${data.registrationNumber}`, left, doc.y, { width: contentWidth });
-      }
+      doc.font("jp").fontSize(10);
+      doc.text(
+        "上記の通りご請求申し上げます。お振込み手数料は御社でご負担頂きますようお願い申し上げます。",
+        left,
+        doc.y,
+        { width: contentWidth },
+      );
 
       doc.end();
     } catch (err) {
