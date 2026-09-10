@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SuccessBanner } from "@/components/organizer/success-banner";
 
 export default async function InvoicesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ done?: string; count?: string }>;
 }) {
   const { eventId } = await params;
+  const { done, count } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
@@ -44,16 +48,30 @@ export default async function InvoicesPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6">
+      <SuccessBanner done={done} count={count} />
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-muted-foreground">請求書</h2>
-        <Button
-          render={
-            <Link href={`/events/${eventId}/invoices/new`}>
-              <Plus />
-              新規作成
-            </Link>
-          }
-        />
+        <div className="flex gap-2">
+          {(context.role === "owner" || context.role === "admin") && (
+            <Button
+              variant="outline"
+              render={
+                <Link href={`/events/${eventId}/invoices/bulk`}>
+                  <Zap />
+                  一括発行
+                </Link>
+              }
+            />
+          )}
+          <Button
+            render={
+              <Link href={`/events/${eventId}/invoices/new`}>
+                <Plus />
+                新規作成
+              </Link>
+            }
+          />
+        </div>
       </div>
 
       {!invoices || invoices.length === 0 ? (

@@ -14,6 +14,10 @@ function resolveMessage(done: string, count?: string): string {
     const n = Number(count ?? 0);
     return n > 0 ? `${n}件に再通知しました。` : "全員確認済みのため、再通知の対象者はいませんでした。";
   }
+  if (done === "bulk_invoices_created") {
+    const n = Number(count ?? 0);
+    return n > 0 ? `${n}件の請求書を発行しました。` : "対象者がいなかったため、請求書は発行されませんでした。";
+  }
   return MESSAGES[done] ?? "完了しました。";
 }
 

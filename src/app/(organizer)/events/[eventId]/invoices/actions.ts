@@ -82,6 +82,39 @@ export async function createInvoice(eventId: string, formData: FormData) {
   redirect(`/events/${eventId}/invoices/${invoice.id}`);
 }
 
+export async function createInvoicesBulkAction(eventId: string, formData: FormData) {
+  const { supabase, context } = await requireOrganizerEvent(eventId);
+  if (context.role !== "owner" && context.role !== "admin") {
+    throw new Error("この操作を行う権限がありません。");
+  }
+
+  const participationIds = formData.getAll("participation_ids").map(String);
+  const dueDate = String(formData.get("due_date") ?? "") || null;
+  const memo = String(formData.get("memo") ?? "").trim() || null;
+
+  if (participationIds.length === 0) {
+    throw new Error("対象を1件以上選んでください。");
+  }
+  if (!dueDate) {
+    throw new Error("支払期限を入力してください。");
+  }
+
+  const { data: results, error } = await supabase.rpc("create_exhibitor_invoices_bulk", {
+    p_event_participation_ids: participationIds,
+    p_due_date: dueDate,
+    p_organizer_internal_memo: memo,
+  });
+  if (error) throw new Error(`一括発行に失敗しました: ${error.message}`);
+
+  const createdCount = (results ?? []).filter((r: { result_status: string }) => r.result_status === "created").length;
+
+  // 発行＝通知の期待に応えるため、キューに積むだけでなくその場で送信まで行う。
+  await processPendingNotifications(50);
+
+  revalidatePath(`/events/${eventId}/invoices`);
+  redirect(`/events/${eventId}/invoices?done=bulk_invoices_created&count=${createdCount}`);
+}
+
 export async function resendInvoiceReminderAction(eventId: string, invoiceId: string) {
   const { supabase } = await requireOrganizerEvent(eventId);
 
