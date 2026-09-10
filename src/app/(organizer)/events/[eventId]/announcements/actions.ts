@@ -77,6 +77,49 @@ export async function createAnnouncementDraft(eventId: string, formData: FormDat
   redirect(`/events/${eventId}/announcements/${version.id}`);
 }
 
+export type UpdateAudienceResult = { ok: true } | { ok: false; error: string };
+
+// 公開対象は既存行を削除して作り直す（1バージョンにつき常に1行という設計を保つため）。
+// 公開後の変更も許可する（新しく対象になった出展者には遡って通知は送られない。
+// 必要であれば「未確認者へ再通知」を別途使う）。
+export async function updateAnnouncementAudience(
+  eventId: string,
+  announcementVersionId: string,
+  formData: FormData,
+): Promise<UpdateAudienceResult> {
+  const { supabase } = await requireOrganizerEvent(eventId);
+
+  const audienceType = String(formData.get("audience_type") ?? "all");
+  const participationIds = formData.getAll("participation_ids").map(String);
+
+  if (audienceType !== "all" && audienceType !== "individual") {
+    return { ok: false, error: "不正な公開対象です。" };
+  }
+  if (audienceType === "individual" && participationIds.length === 0) {
+    return { ok: false, error: "個別選択の場合は対象を1件以上選んでください。" };
+  }
+
+  const { error: deleteError } = await supabase
+    .from("announcement_audiences")
+    .delete()
+    .eq("announcement_version_id", announcementVersionId);
+  if (deleteError) {
+    return { ok: false, error: `公開対象の更新に失敗しました: ${deleteError.message}` };
+  }
+
+  const { error: insertError } = await supabase.from("announcement_audiences").insert({
+    announcement_version_id: announcementVersionId,
+    audience_type: audienceType,
+    event_participation_ids: audienceType === "individual" ? participationIds : [],
+  });
+  if (insertError) {
+    return { ok: false, error: `公開対象の更新に失敗しました: ${insertError.message}` };
+  }
+
+  revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
+  return { ok: true };
+}
+
 export type UploadAttachmentResult = { ok: true } | { ok: false; error: string };
 
 export async function uploadAttachment(

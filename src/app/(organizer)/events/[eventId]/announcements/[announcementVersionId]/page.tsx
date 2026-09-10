@@ -6,6 +6,7 @@ import {
   processNotificationsNowAction,
   publishAnnouncementAction,
   resendAnnouncementAction,
+  updateAnnouncementAudience,
   uploadAttachment,
 } from "../actions";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AttachmentManager } from "./AttachmentManager";
+import { AudienceEditor } from "./AudienceEditor";
 import { SuccessBanner } from "@/components/organizer/success-banner";
 
 export default async function AnnouncementDetailPage({
@@ -57,7 +59,17 @@ export default async function AnnouncementDetailPage({
     .from("announcement_audiences")
     .select("audience_type, event_participation_ids")
     .eq("announcement_version_id", announcementVersionId)
-    .single();
+    .maybeSingle();
+
+  const { data: allParticipations } = await supabase
+    .from("event_participations")
+    .select("id, status, exhibitor_profiles(brand_name)")
+    .eq("event_id", eventId)
+    .not("status", "in", "(cancelled,merged)");
+  const participationOptions = (allParticipations ?? []).map((p) => {
+    const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
+    return { id: p.id, brandName: profile?.brand_name ?? "（未設定）", status: p.status };
+  });
 
   let recipients: { id: string; brand_name: string | null }[] = [];
   if (audience?.audience_type === "all") {
@@ -164,6 +176,12 @@ export default async function AnnouncementDetailPage({
           {version.status === "draft" && !canPublish && (
             <p className="text-xs text-muted-foreground">公開するには、下の「添付ファイル」を1件以上追加してください。</p>
           )}
+          <AudienceEditor
+            participations={participationOptions}
+            currentAudienceType={(audience?.audience_type as "all" | "individual" | undefined) ?? null}
+            currentParticipationIds={audienceParticipationIds ?? []}
+            updateAction={updateAnnouncementAudience.bind(null, eventId, announcementVersionId)}
+          />
         </CardContent>
       </Card>
 

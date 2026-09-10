@@ -17,14 +17,19 @@ const STATUS_LABEL: Record<string, string> = {
 export function AudienceSelector({
   participations,
   defaultParticipationId,
+  defaultAudienceType,
+  defaultParticipationIds,
 }: {
   participations: { id: string; brandName: string; status: string }[];
   defaultParticipationId?: string;
+  defaultAudienceType?: "all" | "individual";
+  defaultParticipationIds?: string[];
 }) {
-  const [audienceType, setAudienceType] = useState<"all" | "individual">(defaultParticipationId ? "individual" : "all");
-  const [selected, setSelected] = useState<Set<string>>(
-    defaultParticipationId ? new Set([defaultParticipationId]) : new Set(),
+  const initialIds = defaultParticipationIds ?? (defaultParticipationId ? [defaultParticipationId] : []);
+  const [audienceType, setAudienceType] = useState<"all" | "individual">(
+    defaultAudienceType ?? (initialIds.length > 0 ? "individual" : "all"),
   );
+  const [selected, setSelected] = useState<Set<string>>(new Set(initialIds));
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
 
   const statusesPresent = useMemo(() => Array.from(new Set(participations.map((p) => p.status))), [participations]);
