@@ -32,12 +32,12 @@ export default async function OnboardPage() {
           </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">組織情報</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form action={createOrganization} className="flex flex-col gap-4">
+        <form action={createOrganization} className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">組織情報</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
               <div className="grid gap-1.5">
                 <Label htmlFor="name">組織名</Label>
                 <Input id="name" name="name" required />
@@ -46,12 +46,32 @@ export default async function OnboardPage() {
                 <Label htmlFor="billing_email">請求先メールアドレス</Label>
                 <Input id="billing_email" type="email" name="billing_email" required defaultValue={user.email ?? ""} />
               </div>
-              <Button type="submit" className="w-full">
-                作成する
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">発行元情報</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <p className="text-xs text-muted-foreground">
+                出展者に発行する請求書PDFに記載されます。後から設定画面でも変更できます。
+              </p>
+              <div className="grid gap-1.5">
+                <Label htmlFor="postal_code">郵便番号</Label>
+                <Input id="postal_code" name="postal_code" required placeholder="例：123-4567" className="max-w-40" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="address">住所</Label>
+                <Input id="address" name="address" required placeholder="例：東京都〇〇区〇〇1-2-3" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button type="submit" className="w-full">
+            作成する
+          </Button>
+        </form>
       </div>
     </div>
   );
