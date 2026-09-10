@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/organizer/submit-button";
 
 export type BulkInvoiceRow = {
   id: string;
@@ -103,9 +103,12 @@ export function BulkInvoicePreview({
         </div>
       )}
 
-      <Button type="submit" disabled={selected.size === 0} className="self-start">
+      <SubmitButton disabled={selected.size === 0} pendingText="発行処理中です...しばらくお待ちください" className="self-start">
         {selected.size > 0 ? `${selected.size}件を発行する` : "発行する"}
-      </Button>
+      </SubmitButton>
+      <p className="text-xs text-muted-foreground">
+        件数が多いほど処理に時間がかかります。発行中はボタンが無効になり、完了まで自動で待機します。
+      </p>
     </form>
   );
 }

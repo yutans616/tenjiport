@@ -66,29 +66,36 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> 
       doc.font("jp-bold").fontSize(22).text("請求書", left, doc.y, { width: contentWidth, align: "center" });
       doc.moveDown(1.5);
 
-      // 請求書番号・発行日（右寄せ）
-      doc.font("jp").fontSize(10);
-      doc.text(`請求書番号: ${data.invoiceNumber}`, left, doc.y, { width: contentWidth, align: "right" });
-      doc.text(`発行日: ${formatDate(data.issueDate)}`, left, doc.y, { width: contentWidth, align: "right" });
-      doc.moveDown(1);
+      // 宛先（左上）と 請求書番号・発行日・発行元（右上、右揃え）の二段組。
+      // 左右それぞれの列内では通常のdoc.y自動送りに任せてよい（同一列内で連続して
+      // 呼ぶ限り値は安定する）。ただし列をまたいで同じyを使い回すのは
+      // 明細テーブルと同じ理由で避け、列ごとに最終的なyを比較して下端を揃える。
+      const headerTop = doc.y;
+      const leftColWidth = contentWidth * 0.55;
+      const rightColX = left + contentWidth * 0.5;
+      const rightColWidth = contentWidth * 0.5;
 
-      // 発行元
-      doc.font("jp-bold").fontSize(11).text("発行元", left, doc.y, { width: contentWidth });
-      doc.moveDown(0.3);
+      doc.font("jp-bold").fontSize(15);
+      doc.text(`${data.exhibitorCompanyName} 御中`, left, headerTop, { width: leftColWidth });
+      const leftBottom = doc.y;
+
       doc.font("jp").fontSize(10);
-      doc.text(data.organizerName, left, doc.y, { width: contentWidth });
-      if (data.organizerPostalCode) doc.text(`〒${data.organizerPostalCode}`, left, doc.y, { width: contentWidth });
-      if (data.organizerAddress) doc.text(data.organizerAddress, left, doc.y, { width: contentWidth });
+      doc.text(`請求書番号: ${data.invoiceNumber}`, rightColX, headerTop, { width: rightColWidth, align: "right" });
+      doc.text(`発行日: ${formatDate(data.issueDate)}`, rightColX, doc.y, { width: rightColWidth, align: "right" });
+      doc.moveDown(0.6);
+      doc.font("jp-bold").fontSize(10);
+      doc.text("発行元", rightColX, doc.y, { width: rightColWidth, align: "right" });
+      doc.font("jp").fontSize(10);
+      doc.text(data.organizerName, rightColX, doc.y, { width: rightColWidth, align: "right" });
+      if (data.organizerPostalCode) doc.text(`〒${data.organizerPostalCode}`, rightColX, doc.y, { width: rightColWidth, align: "right" });
+      if (data.organizerAddress) doc.text(data.organizerAddress, rightColX, doc.y, { width: rightColWidth, align: "right" });
       if (data.registrationNumber) {
-        doc.text(`適格請求書発行事業者登録番号: ${data.registrationNumber}`, left, doc.y, { width: contentWidth });
+        doc.text(`登録番号: ${data.registrationNumber}`, rightColX, doc.y, { width: rightColWidth, align: "right" });
       }
-      doc.moveDown(1.5);
+      const rightBottom = doc.y;
 
+      doc.y = Math.max(leftBottom, rightBottom) + 10;
       rule();
-
-      // 宛先
-      doc.font("jp-bold").fontSize(15).text(`${data.exhibitorCompanyName} 御中`, left, doc.y, { width: contentWidth });
-      doc.moveDown(1.5);
 
       // 明細（品目・数量・金額）
       const colItem = contentWidth * 0.55;

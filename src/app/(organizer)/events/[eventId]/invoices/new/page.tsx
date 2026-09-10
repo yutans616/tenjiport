@@ -2,11 +2,11 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { createInvoice } from "../actions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SubmitButton } from "@/components/organizer/submit-button";
 
 export default async function NewInvoicePage({
   params,
@@ -74,9 +74,9 @@ export default async function NewInvoicePage({
               <Label htmlFor="memo">主催者内部メモ（出展者には表示されません）</Label>
               <Input id="memo" name="memo" />
             </div>
-            <Button type="submit" className="self-start">
+            <SubmitButton pendingText="作成中..." className="self-start">
               作成して通知する
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>
