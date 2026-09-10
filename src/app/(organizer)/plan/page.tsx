@@ -66,6 +66,7 @@ export default async function PlanPage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground">出展者数に応じた従量課金。30社まで9,800円、以降1社300円（テスト価格）。</p>
+              <p className="text-xs text-muted-foreground">開始後、お支払い方法の登録が必須です（登録時に課金は発生しません）。</p>
               <form action={startStandardPlanAction}>
                 <Button type="submit">通常プランを開始する</Button>
               </form>
@@ -225,6 +226,24 @@ export default async function PlanPage() {
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
       <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
 
+      {contract.payment_method_status !== "valid" && (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-base text-destructive">お支払い方法の登録が必須です</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              通常プランのご利用には、お支払い方法の登録が必須です。登録が完了するまで、このページ以外の機能はご利用いただけません（カード登録時に課金は発生しません。実際の請求はイベント終了日を起点に自動で行われます）。
+            </p>
+            <form action={startCardRegistration}>
+              <Button type="submit" className="self-start">
+                カードを登録する
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">通常プラン</CardTitle>
@@ -251,11 +270,6 @@ export default async function PlanPage() {
               </form>
             )}
           </div>
-          {contract.payment_method_status !== "valid" && (
-            <p className="text-xs text-muted-foreground">
-              カード未登録でもイベントの作成・出展者の入力は引き続きご利用いただけます。請求確定後にカードを登録いただくと、自動で課金されます。
-            </p>
-          )}
           {annualOffer && (
             <form action={changeToAnnualPlanAction}>
               <Button type="submit" variant="ghost" size="sm" className="self-start text-muted-foreground">

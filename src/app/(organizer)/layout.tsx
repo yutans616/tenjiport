@@ -1,3 +1,6 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { AppSidebar } from "@/components/organizer/app-sidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -8,6 +11,24 @@ export default async function OrganizerLayout({ children }: { children: React.Re
 
   if (!context) {
     return <div className="flex min-h-screen flex-col bg-muted/30">{children}</div>;
+  }
+
+  // 通常プランはカード登録が必須。未登録の間は/plan以外へのアクセスをブロックする
+  // （年間プラン・契約なしの組織には影響しない）。
+  const supabase = await createClient();
+  const { data: contract } = await supabase
+    .from("service_contracts")
+    .select("plan_type, payment_method_status")
+    .eq("organizer_organization_id", context.organizationId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  const needsCardRegistration = contract?.plan_type === "standard" && contract.payment_method_status !== "valid";
+  if (needsCardRegistration) {
+    const pathname = (await headers()).get("x-pathname") ?? "";
+    if (!pathname.startsWith("/plan")) {
+      redirect("/plan");
+    }
   }
 
   return (

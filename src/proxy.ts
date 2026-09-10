@@ -26,6 +26,10 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Server Componentのlayoutは現在のpathnameを直接受け取れないため、ヘッダー経由で渡す
+  // （(organizer)/layout.tsx のカード登録必須ゲートが利用する）。
+  response.headers.set("x-pathname", pathname);
+
   return response;
 }
 
