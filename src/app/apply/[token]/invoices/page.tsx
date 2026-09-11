@@ -24,6 +24,8 @@ export default async function ExhibitorInvoicesPage({
     .from("event_participations")
     .select("id")
     .eq("event_id", event.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   const { data: invoices } = participation

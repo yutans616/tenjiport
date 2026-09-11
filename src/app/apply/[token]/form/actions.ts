@@ -1,6 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getClientIp } from "@/lib/security/clientIp";
@@ -8,6 +9,21 @@ import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 
 const SUBMIT_LIMIT_PER_IP = 20; // 1時間あたり
 const SUBMIT_WINDOW_SECONDS_PER_IP = 3600;
+
+// このイベントへの初回応募時、複数ブランドを持つ出展者に「どのブランドで応募するか」
+// を選ばせた結果を反映する。choice はブランドのexhibitor_profile_id、または新規ブランド
+// を意味する "new"。参加履歴を作るだけで提出データ自体は使わず、同じページへ戻す
+// （戻った先は参加履歴が存在するため needs_profile_selection=false で解決する）。
+export async function resolveExhibitorProfile(token: string, eventId: string, choice: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("start_or_resume_submission", {
+    p_event_id: eventId,
+    p_exhibitor_profile_id: choice === "new" ? null : choice,
+    p_create_new: choice === "new",
+  });
+  if (error) throw new Error(`ブランドの選択に失敗しました: ${error.message}`);
+  redirect(`/apply/${token}/form`);
+}
 
 export type SubmitResult = { ok: true } | { ok: false; error: string };
 

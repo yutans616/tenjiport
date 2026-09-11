@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SubmissionForm } from "./SubmissionForm";
+import { resolveExhibitorProfile } from "./actions";
+import { Button } from "@/components/ui/button";
 
 export default async function ApplyFormPage({
   params,
@@ -68,6 +70,33 @@ export default async function ApplyFormPage({
   }
 
   const draft = draftRows[0];
+
+  if (draft.needs_profile_selection) {
+    const candidates =
+      (draft.candidate_profiles as { id: string; brand_name: string; company_name: string }[] | null) ?? [];
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-lg flex-1 flex-col gap-6 p-4 py-10">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">{event.name}</p>
+          <h1 className="text-lg font-semibold tracking-tight">どのブランドとして応募しますか？</h1>
+        </div>
+        <div className="flex flex-col gap-2">
+          {candidates.map((c) => (
+            <form key={c.id} action={resolveExhibitorProfile.bind(null, token, event.id, c.id)}>
+              <Button type="submit" variant="outline" className="w-full justify-start">
+                {c.brand_name}（{c.company_name}）として続ける
+              </Button>
+            </form>
+          ))}
+          <form action={resolveExhibitorProfile.bind(null, token, event.id, "new")}>
+            <Button type="submit" variant="ghost" className="w-full justify-start text-muted-foreground">
+              新しいブランドとして応募する
+            </Button>
+          </form>
+        </div>
+      </main>
+    );
+  }
 
   const { data: availabilityRows } = await supabase.rpc("get_choice_availability", { p_event_id: event.id });
   const availability = (

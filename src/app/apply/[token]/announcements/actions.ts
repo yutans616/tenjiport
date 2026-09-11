@@ -57,14 +57,16 @@ export async function uploadAnnouncementSubmission(
     return { ok: false, error: "イベントが見つかりません。" };
   }
 
-  const { data: membership } = await supabase
+  // 出展者が複数ブランドを持つ場合があるため、ユーザーの適当な1ブランドではなく、
+  // このイベントに実際に参加履歴があるブランドをイベント文脈で直接絞り込む
+  // （同一イベントに複数ブランドで参加している稀なケースでは、最初の参加を使う）。
+  const { data: memberships } = await supabase
     .from("exhibitor_memberships")
     .select("exhibitor_profile_id")
     .eq("user_id", user.id)
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
-  if (!membership) {
+    .eq("status", "active");
+  const profileIds = (memberships ?? []).map((m) => m.exhibitor_profile_id);
+  if (profileIds.length === 0) {
     return { ok: false, error: "参加情報が見つかりません。" };
   }
 
@@ -72,7 +74,9 @@ export async function uploadAnnouncementSubmission(
     .from("event_participations")
     .select("id")
     .eq("event_id", event.id)
-    .eq("exhibitor_profile_id", membership.exhibitor_profile_id)
+    .in("exhibitor_profile_id", profileIds)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
   if (!participation) {
     return { ok: false, error: "参加情報が見つかりません。" };
