@@ -75,7 +75,7 @@ export default async function PlanPage({
               <CardTitle className="text-base">通常プラン</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <p className="text-sm text-muted-foreground">出展者数に応じた従量課金。30社まで9,800円、以降1社300円（テスト価格）。</p>
+              <p className="text-sm text-muted-foreground">1開催9,800円／30社まで。31社目から1社300円を自動計算してカードへ課金します。</p>
               <p className="text-xs text-muted-foreground">
                 開始後、お支払い方法の登録が必須です（登録自体に課金は発生しません）。イベントを作成すると基本料金が即時課金され、超過分はイベント終了日を起点に自動課金されます。
               </p>
@@ -105,7 +105,6 @@ export default async function PlanPage({
             </Card>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">※通常プランの価格は未確定のためテスト設定値です。本番課金は価格確定後に反映します。</p>
       </div>
     );
   }
@@ -151,6 +150,9 @@ export default async function PlanPage({
             <p className="text-xs text-muted-foreground">
               従量課金は発生しません。上限を超えても出展者の入力・提出は継続できます。
             </p>
+            {annualConfig?.cap_definition_note && (
+              <p className="text-xs text-muted-foreground">{annualConfig.cap_definition_note}</p>
+            )}
             <div className="flex items-center gap-3">
               <p className="text-xs text-muted-foreground">
                 カード登録: {contract.payment_method_status === "valid" ? "登録済み" : "未登録"}

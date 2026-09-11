@@ -13,7 +13,7 @@ export async function startStandardPlanAction() {
   const { data: pricing } = await supabase
     .from("pricing_configs")
     .select("id")
-    .eq("is_test", true)
+    .eq("is_test", false)
     .order("effective_from", { ascending: false })
     .limit(1)
     .single();
@@ -82,7 +82,7 @@ export async function changeToStandardPlanAction() {
   const { data: pricing } = await supabase
     .from("pricing_configs")
     .select("id")
-    .eq("is_test", true)
+    .eq("is_test", false)
     .order("effective_from", { ascending: false })
     .limit(1)
     .single();
