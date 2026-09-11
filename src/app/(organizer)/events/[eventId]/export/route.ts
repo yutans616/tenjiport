@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { SECTION_TEMPLATES } from "../form/templates";
+import { isRepeatingAnswerValue, formatRepeatingAnswerValue } from "@/lib/forms/formatRepeatingAnswer";
 
 const FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"];
 
@@ -15,6 +16,7 @@ const TEMPLATE_KEY_FILTERS: Record<string, Set<string> | null> = {
 };
 
 function formatCellValue(value: unknown): string {
+  if (isRepeatingAnswerValue(value)) return formatRepeatingAnswerValue(value);
   if (Array.isArray(value)) return value.join("、");
   if (value && typeof value === "object" && "filename" in value) {
     return String((value as { filename: unknown }).filename ?? "");

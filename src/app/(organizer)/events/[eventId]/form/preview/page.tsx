@@ -20,7 +20,7 @@ type FormField = {
   required: boolean;
   help_text: string | null;
   order: number;
-  options_json: { choices?: Choice[] } | null;
+  options_json: { choices?: Choice[]; repeatingFields?: string[] } | null;
 };
 
 function choiceLabel(c: Choice) {
@@ -143,10 +143,20 @@ function PreviewFieldInput({ field }: { field: FormField }) {
   );
 
   if (field.type === "repeating") {
+    const subFields = field.options_json?.repeatingFields ?? [];
     return (
-      <div className="flex flex-col gap-1">
+      <div className="grid gap-1.5">
         {label}
-        <p className="text-xs text-muted-foreground">この項目タイプは近日対応予定です。</p>
+        <div className="flex flex-col gap-2 rounded-lg border p-3">
+          {subFields.length === 0 && <p className="text-xs text-muted-foreground">繰り返す項目が未設定です。</p>}
+          {subFields.map((sub) => (
+            <div key={sub} className="grid gap-1">
+              <Label className="text-xs text-muted-foreground">{sub}</Label>
+              <Input type="text" disabled />
+            </div>
+          ))}
+        </div>
+        {field.help_text && <p className="text-xs text-muted-foreground">{field.help_text}</p>}
       </div>
     );
   }

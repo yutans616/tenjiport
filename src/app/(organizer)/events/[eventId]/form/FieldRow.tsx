@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { FieldForm } from "./FieldForm";
 import { FIELD_TYPE_LABEL } from "./fieldTypes";
 import { formatChoicesSummary, serializeChoicesForEdit, type Choice } from "./choiceUtils";
+import { formatRepeatingFieldsSummary, serializeRepeatingFieldsForEdit } from "./repeatingUtils";
 
 export type FieldRowData = {
   id: string;
@@ -13,7 +14,7 @@ export type FieldRowData = {
   type: string;
   required: boolean;
   help_text: string | null;
-  options_json: { choices?: Choice[] } | null;
+  options_json: { choices?: Choice[]; repeatingFields?: string[] } | null;
 };
 
 export function FieldRow({
@@ -27,6 +28,7 @@ export function FieldRow({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const choicesSummary = formatChoicesSummary(field.options_json);
+  const repeatingSummary = formatRepeatingFieldsSummary(field.options_json);
 
   if (isEditing) {
     const { options, pricedOptions } = serializeChoicesForEdit(field.options_json);
@@ -44,6 +46,7 @@ export function FieldRow({
             helpText: field.help_text ?? "",
             options,
             pricedOptions,
+            repeatingFields: serializeRepeatingFieldsForEdit(field.options_json),
           }}
           submitLabel="保存する"
           onCancel={() => setIsEditing(false)}
@@ -66,7 +69,9 @@ export function FieldRow({
             </Badge>
           )}
         </span>
-        {choicesSummary && <span className="text-xs text-muted-foreground">{choicesSummary}</span>}
+        {(choicesSummary ?? repeatingSummary) && (
+          <span className="text-xs text-muted-foreground">{choicesSummary ?? repeatingSummary}</span>
+        )}
       </span>
       <div className="flex shrink-0 gap-1">
         <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditing(true)}>

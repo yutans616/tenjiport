@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
+import { isRepeatingAnswerValue, formatRepeatingAnswerValue } from "@/lib/forms/formatRepeatingAnswer";
 
 const FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"];
 
@@ -115,7 +116,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const file = value as { filename?: string };
         summaryRows.push([fieldLabelByKey.get(key) ?? key, file.filename ?? ""]);
       } else {
-        const formatted = Array.isArray(value) ? value.join("、") : String(value ?? "");
+        const formatted = isRepeatingAnswerValue(value)
+          ? formatRepeatingAnswerValue(value)
+          : Array.isArray(value)
+            ? value.join("、")
+            : String(value ?? "");
         summaryRows.push([fieldLabelByKey.get(key) ?? key, formatted]);
       }
     }

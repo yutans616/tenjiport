@@ -7,9 +7,26 @@ import { getOrganizerContext } from "@/lib/organizer/context";
 import { SECTION_TEMPLATES } from "./templates";
 import { FIELD_TYPES } from "./fieldTypes";
 
-// 選択肢入力（プレーンなカンマ区切り欄・価格/在庫付きの複数行欄）を options_json に変換する。
-// addField/updateField で共通利用する。
-function buildOptionsJson(type: string, optionsRaw: string, pricedOptionsRaw: string): { choices: unknown[] } | null {
+// 選択肢入力（プレーンなカンマ区切り欄・価格/在庫付きの複数行欄・繰り返し入力のサブ項目欄）を
+// options_json に変換する。addField/updateField で共通利用する。
+function buildOptionsJson(
+  type: string,
+  optionsRaw: string,
+  pricedOptionsRaw: string,
+  repeatingFieldsRaw: string,
+): { choices: unknown[] } | { repeatingFields: string[] } | null {
+  if (type === "repeating") {
+    const fields = Array.from(
+      new Set(
+        repeatingFieldsRaw
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    );
+    return fields.length > 0 ? { repeatingFields: fields } : null;
+  }
+
   if (type !== "single_select" && type !== "multi_select") return null;
 
   if (pricedOptionsRaw) {
@@ -223,13 +240,14 @@ export async function addField(eventId: string, sectionId: string, formData: For
   const helpText = String(formData.get("help_text") ?? "").trim() || null;
   const optionsRaw = String(formData.get("options") ?? "").trim();
   const pricedOptionsRaw = String(formData.get("priced_options") ?? "").trim();
+  const repeatingFieldsRaw = String(formData.get("repeating_fields") ?? "").trim();
 
   if (!label) throw new Error("項目名は必須です。");
   if (!FIELD_TYPES.includes(type as (typeof FIELD_TYPES)[number])) {
     throw new Error("不正な項目タイプです。");
   }
 
-  const optionsJson = buildOptionsJson(type, optionsRaw, pricedOptionsRaw);
+  const optionsJson = buildOptionsJson(type, optionsRaw, pricedOptionsRaw, repeatingFieldsRaw);
 
   const key = `f_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
@@ -305,13 +323,14 @@ export async function updateField(eventId: string, fieldId: string, formData: Fo
   const helpText = String(formData.get("help_text") ?? "").trim() || null;
   const optionsRaw = String(formData.get("options") ?? "").trim();
   const pricedOptionsRaw = String(formData.get("priced_options") ?? "").trim();
+  const repeatingFieldsRaw = String(formData.get("repeating_fields") ?? "").trim();
 
   if (!label) throw new Error("項目名は必須です。");
   if (!FIELD_TYPES.includes(type as (typeof FIELD_TYPES)[number])) {
     throw new Error("不正な項目タイプです。");
   }
 
-  const optionsJson = buildOptionsJson(type, optionsRaw, pricedOptionsRaw);
+  const optionsJson = buildOptionsJson(type, optionsRaw, pricedOptionsRaw, repeatingFieldsRaw);
 
   const { error } = await supabase
     .from("form_fields")

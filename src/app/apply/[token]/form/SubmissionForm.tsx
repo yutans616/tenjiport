@@ -22,7 +22,7 @@ type FormField = {
   required: boolean;
   help_text: string | null;
   order: number;
-  options_json: { choices?: Choice[] } | null;
+  options_json: { choices?: Choice[]; repeatingFields?: string[] } | null;
 };
 
 type FormSection = {
@@ -33,8 +33,6 @@ type FormSection = {
 };
 
 export type ChoiceAvailability = { fieldKey: string; choiceLabel: string; capacity: number; takenCount: number };
-
-const UNSUPPORTED_TYPES = new Set(["repeating"]);
 
 function choiceLabel(c: Choice) {
   return typeof c === "string" ? c : c.label;
@@ -241,11 +239,18 @@ function FieldInput({
     </Label>
   );
 
-  if (UNSUPPORTED_TYPES.has(field.type)) {
+  if (field.type === "repeating") {
+    const subFields = field.options_json?.repeatingFields ?? [];
     return (
-      <div className="flex flex-col gap-1">
+      <div className="grid gap-1.5">
         {label}
-        <p className="text-xs text-muted-foreground">この項目タイプは近日対応予定です。</p>
+        <RepeatingFieldInput
+          fieldKey={field.key}
+          subFields={subFields}
+          value={value as Array<Record<string, string>> | undefined}
+          onChange={onChange}
+        />
+        {field.help_text && <p className="text-xs text-muted-foreground">{field.help_text}</p>}
       </div>
     );
   }
@@ -465,6 +470,67 @@ function FileFieldInput({
         </label>
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+const MAX_REPEATING_ROWS = 20;
+
+function RepeatingFieldInput({
+  fieldKey,
+  subFields,
+  value,
+  onChange,
+}: {
+  fieldKey: string;
+  subFields: string[];
+  value: Array<Record<string, string>> | undefined;
+  onChange: (key: string, value: unknown) => void;
+}) {
+  const rows = value ?? [];
+
+  function updateRow(index: number, subField: string, v: string) {
+    const next = rows.map((row, i) => (i === index ? { ...row, [subField]: v } : row));
+    onChange(fieldKey, next);
+  }
+
+  function addRow() {
+    if (rows.length >= MAX_REPEATING_ROWS) return;
+    onChange(fieldKey, [...rows, {}]);
+  }
+
+  function removeRow(index: number) {
+    onChange(
+      fieldKey,
+      rows.filter((_, i) => i !== index),
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {rows.map((row, index) => (
+        <div key={index} className="flex flex-col gap-2 rounded-lg border p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{index + 1}件目</span>
+            <button
+              type="button"
+              onClick={() => removeRow(index)}
+              className="text-xs text-muted-foreground hover:text-destructive"
+            >
+              削除
+            </button>
+          </div>
+          {subFields.map((sub) => (
+            <div key={sub} className="grid gap-1">
+              <Label className="text-xs text-muted-foreground">{sub}</Label>
+              <Input type="text" value={row[sub] ?? ""} onChange={(e) => updateRow(index, sub, e.target.value)} />
+            </div>
+          ))}
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" className="self-start" onClick={addRow} disabled={rows.length >= MAX_REPEATING_ROWS}>
+        + 追加する
+      </Button>
     </div>
   );
 }

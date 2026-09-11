@@ -15,6 +15,7 @@ export type FieldFormInitial = {
   helpText: string;
   options: string;
   pricedOptions: string;
+  repeatingFields: string;
 };
 
 export function FieldForm({
@@ -30,6 +31,7 @@ export function FieldForm({
 }) {
   const [type, setType] = useState(initial?.type ?? "short_text");
   const isSelectType = SELECT_FIELD_TYPES.has(type);
+  const isRepeatingType = type === "repeating";
 
   return (
     <form action={action} className="flex flex-col gap-4">
@@ -75,6 +77,15 @@ export function FieldForm({
             </div>
           </div>
         </>
+      )}
+      {isRepeatingType && (
+        <div className="grid gap-1.5">
+          <Label>繰り返す項目（カンマ区切り）</Label>
+          <Input name="repeating_fields" placeholder="例：氏名,所属,メールアドレス" defaultValue={initial?.repeatingFields} />
+          <p className="text-xs text-muted-foreground">
+            出展者は「追加する」ボタンで、ここで指定した項目のセットを何行でも入力できます（例：スタッフを複数人分、車両を複数台分など）。
+          </p>
+        </div>
       )}
       <div className="grid gap-1.5">
         <Label>説明（任意）</Label>
