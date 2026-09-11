@@ -251,7 +251,7 @@ export default async function PlanPage({
   // 超過0件の確認済みマーカー行（total_amount_yen=0）は請求として意味を持たないため表示しない。
   const { data: invoices } = await supabase
     .from("service_invoices")
-    .select("id, event_id, charge_kind, total_amount_yen, status, created_at, events(name)")
+    .select("id, event_id, charge_kind, total_amount_yen, status, created_at, invoice_number, invoice_file_id, events(name)")
     .eq("service_contract_id", contract.id)
     .gt("total_amount_yen", 0)
     .order("created_at", { ascending: false });
@@ -347,9 +347,22 @@ export default async function PlanPage({
                   <span className="text-muted-foreground">
                     {event?.name ?? "（不明なイベント）"}
                     <span className="ml-1 text-xs">（{CHARGE_KIND_LABEL[inv.charge_kind] ?? inv.charge_kind}）</span>
+                    {inv.invoice_number && <span className="ml-1 text-xs">{inv.invoice_number}</span>}
                   </span>
                   <span className="font-medium">¥{inv.total_amount_yen.toLocaleString("ja-JP")}</span>
-                  <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                    {inv.invoice_file_id && (
+                      <a
+                        href={`/api/files/${inv.invoice_file_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary underline-offset-4 hover:underline"
+                      >
+                        請求書PDF
+                      </a>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );

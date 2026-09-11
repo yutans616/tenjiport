@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { createStripeClient } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { notifyChargeFailed, notifyChargeSucceeded } from "@/lib/billing/notifyOrganizer";
+import { generateAndAttachServiceInvoicePdf } from "@/lib/billing/generateServiceInvoiceDocument";
 
 // service_invoicesの状態を更新し、対応するpayment_events行をprocessedにする。
 // service_invoice_idがmetadataに無い（このアプリが発行したPaymentIntentではない）
@@ -56,6 +57,7 @@ async function reflectPaymentIntentResult(
   const event = Array.isArray(invoice.events) ? invoice.events[0] : invoice.events;
   const eventName = event?.name ?? "（不明なイベント）";
   if (outcome === "charged") {
+    await generateAndAttachServiceInvoicePdf(serviceClient, invoiceId);
     await notifyChargeSucceeded({
       organizationId: invoice.organizer_organization_id,
       eventName,
