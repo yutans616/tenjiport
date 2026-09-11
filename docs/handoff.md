@@ -21,15 +21,17 @@
 **最終更新**: 2026-09-11
 
 **直近やっていたこと**:
-- 「未対応の項目を順に実装」の依頼で、以下4件のうち3件が完了・本番デプロイ済み：
+- 「未対応の項目を順に実装」の依頼4件、すべて完了・本番デプロイ済み：
   1. 年間プランの「開催数上限」超過バナー（`/plan`）
   2. フォームの「繰り返し入力」フィールドタイプ実装（サブ項目はカンマ区切りラベル指定、型は常に1行テキスト）
   3. 「1ユーザー1ブランド」制限の解消（新規イベント応募時、既存ブランドが2件以上ある場合のみピッカー表示。マイグレーション`0039_phase11_multi_brand_selection.sql`、`start_or_resume_submission`を拡張）
+  4. CAPTCHA（Cloudflare Turnstile）接続。メールアドレス入力（OTP請求）画面にのみ設置、イベントごとに主催者が任意でON/OFF可能（デフォルトOFF）。`NEXT_PUBLIC_TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`が未設定の間はトグルUI自体が非表示で機能は完全に不活性
 - 3番目の実装中、SupabaseのSQL Editorで2回エラーが出た（①`column reference "status" is ambiguous"`＝RETURNS TABLEの出力列名とWHERE句の無修飾列名の衝突、②仕様の作り込みミスで1ブランドのみのユーザーにもピッカーが出てしまっていた）。どちらも修正しSQLを再提示、ユーザーに再実行してもらって解消・検証済み（13/13チェックPASS）。
+- 4番目はSQL不要（アプリ層のみ）。ローカルでダミーのTurnstileキーを一時的に`.env.local`へ設定→devサーバー再起動→検証→キーを削除して再起動、という手順で動作確認（Cloudflareの実サイトキーは未取得のまま、全経路をダミー値で検証済み）。
 
 **次にやること**:
-- 4番目：CAPTCHA（Cloudflare Turnstile）接続。`events.spam_guard_config`に受け皿はあるが未接続。外部でTurnstileのサイトキー取得が前提（ユーザー側の準備が必要）。乱用が実際に発生してから導入する方針だったため優先度は低め。
-- ユーザーへの確認待ち：4番目に進むかどうか、次に何をやるか。
+- 依頼された4件は完了。ユーザーへの確認待ち：次に何をやるか。
+- Turnstileを実際に有効化する場合の手順：①Cloudflareダッシュボード→Turnstile→「Add site」で`tenjiport.com`を追加（ウィジェットモードは「Managed」推奨）、Site KeyとSecret Keyを取得。②`.env.local`と、Vercelのプロジェクト環境変数の両方に`NEXT_PUBLIC_TURNSTILE_SITE_KEY`と`TURNSTILE_SECRET_KEY`を追加。③Vercel側はRedeploy。これで主催者側のイベント編集画面にCAPTCHAトグルが現れるようになる（コード変更は不要、キー追加のみ）。
 
 **未コミット・進行中の変更**:
 - なし（直近の変更はすべてコミット・push・本番デプロイ確認済み）
