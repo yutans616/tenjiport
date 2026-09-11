@@ -118,6 +118,16 @@ export async function updateEvent(eventId: string, formData: FormData) {
   const status = String(formData.get("status") ?? "draft");
   const supabase = await createClient();
 
+  // CAPTCHAトグルは環境変数（サイトキー）が設定されている場合のみUIに表示されるため、
+  // 未設定時はspam_guard_configを更新対象に含めない（既存の設定値を意図せず上書きしないため）。
+  const updatePayload: Record<string, unknown> = { ...fields, status };
+  if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+    updatePayload.spam_guard_config = {
+      captcha_enabled: formData.get("captcha_enabled") === "on",
+      honeypot_enabled: true,
+    };
+  }
+
   const { data: before } = await supabase
     .from("events")
     .select()
@@ -126,7 +136,7 @@ export async function updateEvent(eventId: string, formData: FormData) {
 
   const { data: after, error } = await supabase
     .from("events")
-    .update({ ...fields, status })
+    .update(updatePayload)
     .eq("id", eventId)
     .select()
     .single();

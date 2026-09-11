@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getClientIp } from "@/lib/security/clientIp";
+import { verifyTurnstile } from "@/lib/security/verifyTurnstile";
 
 const OTP_LIMIT_PER_IP = 8; // 10分あたり
 const OTP_WINDOW_SECONDS_PER_IP = 600;
@@ -15,6 +16,7 @@ export async function requestExhibitorOtp(
   token: string,
   email: string,
   honeypot: string,
+  turnstileToken: string,
 ): Promise<RequestOtpResult> {
   // ハニーポット：人間には見えない項目。埋まっていればBotとみなし、
   // 相手に手がかりを与えないよう成功したふりをして何もしない。
@@ -28,6 +30,23 @@ export async function requestExhibitorOtp(
   }
 
   const ip = await getClientIp();
+  const supabase = await createClient();
+
+  // captcha_enabledはイベントごとの任意設定（主催者がONにした場合のみ検証する）。
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, spam_guard_config")
+    .eq("public_form_token", token)
+    .maybeSingle();
+  const captchaEnabled = (event?.spam_guard_config as { captcha_enabled?: boolean } | null)?.captcha_enabled === true;
+
+  if (captchaEnabled) {
+    const verified = await verifyTurnstile(turnstileToken, ip);
+    if (!verified) {
+      return { ok: false, error: "認証に失敗しました。もう一度お試しください。" };
+    }
+  }
+
   const serviceClient = createServiceRoleClient();
 
   const [ipAllowed, emailAllowed] = await Promise.all([
@@ -50,7 +69,6 @@ export async function requestExhibitorOtp(
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email: trimmedEmail,
     options: {

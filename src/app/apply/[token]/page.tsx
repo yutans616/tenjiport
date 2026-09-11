@@ -13,7 +13,7 @@ export default async function ApplyEntryPage({
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, venue, start_date, end_date, status")
+    .select("id, name, venue, start_date, end_date, status, spam_guard_config")
     .eq("public_form_token", token)
     .maybeSingle();
 
@@ -36,6 +36,8 @@ export default async function ApplyEntryPage({
     redirect(`/apply/${token}/form`);
   }
 
+  const captchaEnabled = (event.spam_guard_config as { captcha_enabled?: boolean } | null)?.captcha_enabled === true;
+
   return (
     <main className="flex min-h-screen flex-1 items-center justify-center p-4">
       <div className="flex w-full max-w-sm flex-col gap-6">
@@ -55,7 +57,11 @@ export default async function ApplyEntryPage({
             </p>
           </CardHeader>
           <CardContent>
-            <EmailEntryForm token={token} />
+            <EmailEntryForm
+              token={token}
+              captchaEnabled={captchaEnabled}
+              turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? null}
+            />
           </CardContent>
         </Card>
       </div>

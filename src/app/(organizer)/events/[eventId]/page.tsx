@@ -24,7 +24,7 @@ export default async function EventDetailPage({
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, status, venue, start_date, end_date")
+    .select("id, name, status, venue, start_date, end_date, spam_guard_config")
     .eq("id", eventId)
     .eq("organizer_organization_id", context!.organizationId)
     .single();
@@ -72,6 +72,17 @@ export default async function EventDetailPage({
                 「公開中」にし、かつ「フォーム設定」ページでフォームも公開すると、出展者がフォームURLから入力できるようになります（どちらか一方だけでは入力できません）。
               </p>
             </div>
+            {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="captcha_enabled"
+                  className="size-4 rounded border-input"
+                  defaultChecked={(event.spam_guard_config as { captcha_enabled?: boolean } | null)?.captcha_enabled === true}
+                />
+                出展者フォームにCAPTCHA（自動入力対策）を表示する
+              </label>
+            )}
             <Button type="submit" className="self-start">
               保存する
             </Button>
