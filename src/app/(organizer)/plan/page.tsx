@@ -119,6 +119,8 @@ export default async function PlanPage({
     const usageRows = (usage as AnnualPlanUsageRow[] | null) ?? [];
     const overCapEvents = usageRows.filter((u) => u.is_over_participant_cap);
     const eventsUsedCount = usageRows[0]?.events_used_count ?? 0;
+    const eventCountCap = annualConfig?.event_count_cap ?? null;
+    const isOverEventCountCap = eventCountCap !== null && eventsUsedCount > eventCountCap;
 
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
@@ -172,6 +174,19 @@ export default async function PlanPage({
             </form>
           </CardContent>
         </Card>
+
+        {isOverEventCountCap && (
+          <Card className="border-destructive/40">
+            <CardHeader>
+              <CardTitle className="text-base text-destructive">年間の開催数上限を超えています</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              <p className="text-sm text-muted-foreground">
+                現在{eventsUsedCount}開催（上限{eventCountCap}開催）。出展者の入力・提出は引き続き可能です。今後も超過が見込まれる場合は、個別見積もりへの切り替えをご検討ください。
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {overCapEvents.length > 0 && (
           <Card className="border-destructive/40">
