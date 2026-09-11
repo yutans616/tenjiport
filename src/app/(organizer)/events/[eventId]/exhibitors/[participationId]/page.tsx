@@ -179,6 +179,9 @@ export default async function ExhibitorDetailPage({
               </p>
             ) : (
               <form action={cancelParticipationAction.bind(null, eventId, participationId)} className="flex flex-col gap-2">
+                <p className="text-xs text-muted-foreground">
+                  提出済みの場合、キャンセル後も課金対象のままとなります（既にサービスをご利用いただいたため）。重複登録・テスト登録など、そもそも課金対象でなかった場合は下部の「課金対象から除外する（訂正）」をお使いください。
+                </p>
                 {latestInvoice && (
                   <p className="text-xs text-muted-foreground">
                     既に請求書が発行されています。必要に応じて個別にご対応ください。
