@@ -1,7 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
-import { addUsageCorrectionAction, cancelRevisionRequestAction, confirmSubmissionAction, requestRevisionAction } from "./actions";
+import {
+  addUsageCorrectionAction,
+  cancelParticipationAction,
+  cancelRevisionRequestAction,
+  confirmSubmissionAction,
+  requestRevisionAction,
+} from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +44,9 @@ export default async function ExhibitorDetailPage({
 
   const { data: participation } = await supabase
     .from("event_participations")
-    .select("id, status, resolved_price_yen, organizer_note, exhibitor_profiles(brand_name, company_name, default_contact_email)")
+    .select(
+      "id, status, resolved_price_yen, organizer_note, cancelled_at, cancelled_reason, exhibitor_profiles(brand_name, company_name, default_contact_email)",
+    )
     .eq("id", participationId)
     .eq("event_id", eventId)
     .single();
@@ -156,6 +164,35 @@ export default async function ExhibitorDetailPage({
           />
         </CardContent>
       </Card>
+
+      {participation.status !== "merged" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">参加のキャンセル</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {participation.status === "cancelled" ? (
+              <p className="text-sm text-muted-foreground">
+                この出展者はキャンセルされています（
+                {participation.cancelled_at ? new Date(participation.cancelled_at).toLocaleString("ja-JP") : ""}
+                ）。理由：{participation.cancelled_reason}
+              </p>
+            ) : (
+              <form action={cancelParticipationAction.bind(null, eventId, participationId)} className="flex flex-col gap-2">
+                {latestInvoice && (
+                  <p className="text-xs text-muted-foreground">
+                    既に請求書が発行されています。必要に応じて個別にご対応ください。
+                  </p>
+                )}
+                <Textarea name="reason" required rows={2} placeholder="キャンセル理由（例：出展辞退の申し出）" />
+                <Button type="submit" variant="destructive" className="self-start">
+                  この出展者をキャンセルする
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {ledgerRows && ledgerRows.length > 0 && (
         <Card>

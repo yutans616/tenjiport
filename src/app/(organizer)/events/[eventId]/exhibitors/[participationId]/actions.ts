@@ -97,3 +97,38 @@ export async function addUsageCorrectionAction(eventId: string, participationId:
 
   revalidatePath(`/events/${eventId}/exhibitors/${participationId}`);
 }
+
+// 出展者のキャンセル。課金対象（訂正されていない課金計上行）が残っている場合は、
+// 既存のadd_usage_correctionを続けて呼び、課金対象から自動的に除外する。
+export async function cancelParticipationAction(eventId: string, participationId: string, formData: FormData) {
+  const context = await getOrganizerContext();
+  if (!context) redirect("/login");
+
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) throw new Error("キャンセル理由は必須です。");
+
+  const supabase = await createClient();
+
+  const { error: cancelError } = await supabase.rpc("cancel_event_participation", {
+    p_event_participation_id: participationId,
+    p_reason: reason,
+  });
+  if (cancelError) throw new Error(`キャンセルに失敗しました: ${cancelError.message}`);
+
+  const { data: ledgerRows } = await supabase
+    .from("usage_ledger")
+    .select("quantity")
+    .eq("event_participation_id", participationId);
+  const netBillable = (ledgerRows ?? []).reduce((sum, r) => sum + r.quantity, 0);
+
+  if (netBillable > 0) {
+    const { error: correctionError } = await supabase.rpc("add_usage_correction", {
+      p_event_participation_id: participationId,
+      p_reason: reason,
+    });
+    if (correctionError) throw new Error(`キャンセル後の課金訂正に失敗しました: ${correctionError.message}`);
+  }
+
+  revalidatePath(`/events/${eventId}/exhibitors`);
+  revalidatePath(`/events/${eventId}/exhibitors/${participationId}`);
+}
