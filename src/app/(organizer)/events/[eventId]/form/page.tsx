@@ -8,6 +8,7 @@ import {
   addPresetField,
   addSection,
   addSectionTemplate,
+  copySectionsFromEvent,
   deleteField,
   deleteSection,
   ensureDraftForm,
@@ -20,6 +21,7 @@ import { SECTION_TEMPLATES } from "./templates";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Separator } from "@/components/ui/separator";
 import { SuccessBanner } from "@/components/organizer/success-banner";
 import { CopyButton } from "@/components/organizer/copy-button";
@@ -72,10 +74,22 @@ export default async function FormBuilderPage({
     .eq("form_id", formId)
     .order("order", { ascending: true });
 
+  const { data: otherEventsRaw } = await supabase
+    .from("events")
+    .select("id, name, created_at, forms(id, form_sections(id))")
+    .eq("organizer_organization_id", context!.organizationId)
+    .neq("id", eventId)
+    .order("created_at", { ascending: false });
+
+  const copySourceEvents = (otherEventsRaw ?? [])
+    .filter((e) => (e.forms ?? []).some((f) => (f.form_sections ?? []).length > 0))
+    .map((e) => ({ id: e.id, name: e.name }));
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const publicUrl = `${appUrl}/apply/${event.public_form_token}`;
 
   const addSectionWithIds = addSection.bind(null, eventId, formId);
+  const copySectionsWithIds = copySectionsFromEvent.bind(null, eventId, formId);
   const publishFormWithIds = publishForm.bind(null, eventId, formId);
   const regenerateTokenWithId = regeneratePublicToken.bind(null, eventId);
 
@@ -213,6 +227,35 @@ export default async function FormBuilderPage({
                 })}
               </div>
             </div>
+
+            {copySourceEvents.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    他のイベントのセクション・項目をまとめてコピー
+                  </p>
+                  <form action={copySectionsWithIds} className="flex gap-2">
+                    <NativeSelect name="sourceEventId" required defaultValue="" className="flex-1">
+                      <option value="" disabled>
+                        コピー元のイベントを選択
+                      </option>
+                      {copySourceEvents.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                    <Button type="submit" variant="outline">
+                      コピーする
+                    </Button>
+                  </form>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    選択したイベントのセクション・項目をすべて、このフォームの末尾に追加します（既存のセクションは変更されません）。
+                  </p>
+                </div>
+              </>
+            )}
 
             <Separator />
 

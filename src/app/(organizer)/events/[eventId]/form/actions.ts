@@ -143,6 +143,78 @@ export async function addSectionTemplate(eventId: string, formId: string, templa
   revalidatePath(`/events/${eventId}/form`);
 }
 
+// 他のイベントのフォームから、セクション・項目一式をこのフォームの末尾にコピーする。
+export async function copySectionsFromEvent(eventId: string, formId: string, formData: FormData) {
+  const { supabase, context } = await requireOrganizerEvent(eventId);
+  const sourceEventId = String(formData.get("sourceEventId") ?? "").trim();
+  if (!sourceEventId) throw new Error("コピー元のイベントを選択してください。");
+  if (sourceEventId === eventId) throw new Error("同じイベントからはコピーできません。");
+
+  const { data: sourceEvent } = await supabase
+    .from("events")
+    .select("id")
+    .eq("id", sourceEventId)
+    .eq("organizer_organization_id", context.organizationId)
+    .single();
+  if (!sourceEvent) throw new Error("コピー元のイベントが見つかりません。");
+
+  const { data: sourceForm } = await supabase
+    .from("forms")
+    .select("id")
+    .eq("event_id", sourceEventId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!sourceForm) throw new Error("コピー元のイベントにはフォームがありません。");
+
+  const { data: sourceSections } = await supabase
+    .from("form_sections")
+    .select("id, title, order, form_fields(id, key, label, type, required, help_text, order, options_json)")
+    .eq("form_id", sourceForm.id)
+    .order("order", { ascending: true });
+  if (!sourceSections || sourceSections.length === 0) {
+    throw new Error("コピー元のイベントにはセクションがありません。");
+  }
+
+  const { data: existingSections } = await supabase
+    .from("form_sections")
+    .select("order")
+    .eq("form_id", formId)
+    .order("order", { ascending: false })
+    .limit(1);
+  let nextSectionOrder = (existingSections?.[0]?.order ?? -1) + 1;
+
+  const reservedKeys = new Set(Object.keys(PRESET_FIELDS));
+
+  for (const section of sourceSections) {
+    const { data: newSection, error: sectionError } = await supabase
+      .from("form_sections")
+      .insert({ form_id: formId, title: section.title, order: nextSectionOrder++ })
+      .select("id")
+      .single();
+    if (sectionError || !newSection) throw new Error(`セクションのコピーに失敗しました: ${sectionError?.message}`);
+
+    const fields = (section.form_fields ?? []).sort((a, b) => a.order - b.order);
+    if (fields.length === 0) continue;
+
+    const fieldRows = fields.map((f) => ({
+      form_section_id: newSection.id,
+      key: reservedKeys.has(f.key) ? f.key : `f_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+      label: f.label,
+      type: f.type,
+      required: f.required,
+      help_text: f.help_text,
+      options_json: f.options_json,
+      order: f.order,
+    }));
+
+    const { error: fieldsError } = await supabase.from("form_fields").insert(fieldRows);
+    if (fieldsError) throw new Error(`項目のコピーに失敗しました: ${fieldsError.message}`);
+  }
+
+  revalidatePath(`/events/${eventId}/form`);
+}
+
 export async function addField(eventId: string, sectionId: string, formData: FormData) {
   const { supabase } = await requireOrganizerEvent(eventId);
   const label = String(formData.get("label") ?? "").trim();
