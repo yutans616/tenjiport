@@ -38,25 +38,39 @@ export default async function ExhibitorAnnouncementsPage({
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
-          {(announcements as MyAnnouncementRow[]).map((a) => (
-            <Link key={a.announcement_version_id} href={`/apply/${token}/announcements/${a.announcement_version_id}`}>
-              <Card className="transition-colors hover:border-primary/40 hover:bg-accent/40">
-                <CardContent className="flex items-center justify-between py-4">
-                  <div>
-                    <p className="font-medium">{a.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {a.published_at ? new Date(a.published_at).toLocaleString("ja-JP") : ""}
-                    </p>
-                  </div>
-                  {a.acknowledged_at ? (
-                    <Badge variant="secondary">確認済み</Badge>
-                  ) : (
-                    <Badge variant="default">未確認</Badge>
-                  )}
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+          {(announcements as MyAnnouncementRow[]).map((a) => {
+            const today = new Date().toISOString().slice(0, 10);
+            const notSubmittedYet = (a.submissions?.length ?? 0) === 0;
+            const isOverdue = a.requires_submission && notSubmittedYet && !!a.submission_due_date && a.submission_due_date < today;
+            return (
+              <Link key={a.announcement_version_id} href={`/apply/${token}/announcements/${a.announcement_version_id}`}>
+                <Card className="transition-colors hover:border-primary/40 hover:bg-accent/40">
+                  <CardContent className="flex items-center justify-between py-4">
+                    <div>
+                      <p className="font-medium">{a.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {a.published_at ? new Date(a.published_at).toLocaleString("ja-JP") : ""}
+                      </p>
+                      {a.requires_submission && a.submission_due_date && (
+                        <p className={`text-xs ${isOverdue ? "font-medium text-destructive" : "text-muted-foreground"}`}>
+                          提出期限: {new Date(a.submission_due_date).toLocaleDateString("ja-JP")}
+                          {isOverdue ? "（期限超過）" : ""}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {a.requires_submission && notSubmittedYet && <Badge variant="outline">未提出</Badge>}
+                      {a.acknowledged_at ? (
+                        <Badge variant="secondary">確認済み</Badge>
+                      ) : (
+                        <Badge variant="default">未確認</Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </main>

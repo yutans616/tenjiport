@@ -31,10 +31,12 @@ export default async function AnnouncementsPage({
   const { data: announcements } = await supabase
     .from("announcements")
     .select(
-      "id, created_at, current_version_id, announcement_versions!announcement_versions_announcement_id_fkey(id, title, status, published_at, version_number)",
+      "id, created_at, current_version_id, requires_submission, submission_due_date, announcement_versions!announcement_versions_announcement_id_fkey(id, title, status, published_at, version_number)",
     )
     .eq("event_id", eventId)
     .order("created_at", { ascending: false });
+
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -71,9 +73,16 @@ export default async function AnnouncementsPage({
                         {latest.published_at ? ` ・ 公開: ${new Date(latest.published_at).toLocaleString("ja-JP")}` : ""}
                       </p>
                     </div>
-                    <Badge variant={latest.status === "published" ? "default" : "outline"}>
-                      {latest.status === "published" ? "公開中" : "下書き"}
-                    </Badge>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {a.requires_submission && a.submission_due_date && (
+                        <Badge variant={a.submission_due_date < today ? "destructive" : "outline"}>
+                          提出期限: {new Date(a.submission_due_date).toLocaleDateString("ja-JP")}
+                        </Badge>
+                      )}
+                      <Badge variant={latest.status === "published" ? "default" : "outline"}>
+                        {latest.status === "published" ? "公開中" : "下書き"}
+                      </Badge>
+                    </div>
                   </CardContent>
                 </Card>
               </Link>

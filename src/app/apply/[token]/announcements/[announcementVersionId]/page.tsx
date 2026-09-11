@@ -73,7 +73,23 @@ export default async function ExhibitorAnnouncementDetailPage({
 
           {announcement.requires_submission && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-xs font-medium text-muted-foreground">提出物</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground">提出物</p>
+                {announcement.submission_due_date && (
+                  <p
+                    className={`text-xs ${
+                      submissions.length === 0 && announcement.submission_due_date < new Date().toISOString().slice(0, 10)
+                        ? "font-medium text-destructive"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    提出期限: {new Date(announcement.submission_due_date).toLocaleDateString("ja-JP")}
+                    {submissions.length === 0 && announcement.submission_due_date < new Date().toISOString().slice(0, 10)
+                      ? "（期限超過）"
+                      : ""}
+                  </p>
+                )}
+              </div>
               <SubmissionUploadManager submissions={submissions} uploadAction={uploadWithIds} deleteAction={deleteWithIds} />
             </div>
           )}

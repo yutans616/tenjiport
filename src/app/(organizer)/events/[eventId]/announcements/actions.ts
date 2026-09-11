@@ -30,6 +30,7 @@ export async function createAnnouncementDraft(eventId: string, formData: FormDat
   const body = String(formData.get("body") ?? "").trim();
   const ackRequired = formData.get("ack_required") === "on";
   const requiresSubmission = formData.get("requires_submission") === "on";
+  const submissionDueDate = String(formData.get("submission_due_date") ?? "").trim() || null;
   const audienceType = String(formData.get("audience_type") ?? "all");
   const participationIds = formData.getAll("participation_ids").map(String);
 
@@ -48,6 +49,7 @@ export async function createAnnouncementDraft(eventId: string, formData: FormDat
       created_by_user_id: context.userId,
       ack_required: ackRequired,
       requires_submission: requiresSubmission,
+      submission_due_date: submissionDueDate,
     })
     .select("id")
     .single();
@@ -75,6 +77,29 @@ export async function createAnnouncementDraft(eventId: string, formData: FormDat
 
   revalidatePath(`/events/${eventId}/announcements`);
   redirect(`/events/${eventId}/announcements/${version.id}`);
+}
+
+// 提出期限は依頼（announcements）側の属性のため、announcement_versions経由で
+// announcement_idを引いてから更新する。公開後も変更できる（締切延長など）。
+export async function updateSubmissionDueDate(eventId: string, announcementVersionId: string, formData: FormData) {
+  const { supabase } = await requireOrganizerEvent(eventId);
+
+  const submissionDueDate = String(formData.get("submission_due_date") ?? "").trim() || null;
+
+  const { data: version } = await supabase
+    .from("announcement_versions")
+    .select("announcement_id")
+    .eq("id", announcementVersionId)
+    .single();
+  if (!version) throw new Error("資料が見つかりません。");
+
+  const { error } = await supabase
+    .from("announcements")
+    .update({ submission_due_date: submissionDueDate })
+    .eq("id", version.announcement_id);
+  if (error) throw new Error(`提出期限の更新に失敗しました: ${error.message}`);
+
+  revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
 }
 
 export type UpdateAudienceResult = { ok: true } | { ok: false; error: string };

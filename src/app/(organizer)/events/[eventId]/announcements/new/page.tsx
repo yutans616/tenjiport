@@ -69,6 +69,11 @@ export default async function NewAnnouncementPage({
               />
               出展者からのファイル提出を必須にする（ロゴ・車両証・申請書類など）
             </label>
+            <div className="grid gap-1.5">
+              <Label htmlFor="submission_due_date">提出期限（任意）</Label>
+              <Input id="submission_due_date" type="date" name="submission_due_date" className="w-48" />
+              <p className="text-xs text-muted-foreground">「出展者からのファイル提出を必須にする」を選んだ場合のみ使用されます。</p>
+            </div>
 
             <AudienceSelector
               participations={(participations ?? []).map((p) => {

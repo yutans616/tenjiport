@@ -7,11 +7,14 @@ import {
   publishAnnouncementAction,
   resendAnnouncementAction,
   updateAnnouncementAudience,
+  updateSubmissionDueDate,
   uploadAttachment,
 } from "../actions";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AttachmentManager } from "./AttachmentManager";
 import { AudienceEditor } from "./AudienceEditor";
@@ -41,13 +44,14 @@ export default async function AnnouncementDetailPage({
   const { data: version } = await supabase
     .from("announcement_versions")
     .select(
-      "id, title, body, status, version_number, published_at, announcement_id, announcements!announcement_versions_announcement_id_fkey(requires_submission)",
+      "id, title, body, status, version_number, published_at, announcement_id, announcements!announcement_versions_announcement_id_fkey(requires_submission, submission_due_date)",
     )
     .eq("id", announcementVersionId)
     .single();
   if (!version) notFound();
   const announcementMeta = Array.isArray(version.announcements) ? version.announcements[0] : version.announcements;
   const requiresSubmission = announcementMeta?.requires_submission ?? false;
+  const submissionDueDate = announcementMeta?.submission_due_date ?? null;
 
   const { data: attachments } = await supabase
     .from("announcement_attachments")
@@ -175,7 +179,38 @@ export default async function AnnouncementDetailPage({
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="whitespace-pre-wrap text-sm">{version.body}</p>
-          {requiresSubmission && <Badge variant="outline">出展者からの提出を依頼中</Badge>}
+          {requiresSubmission && (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">出展者からの提出を依頼中</Badge>
+                {submissionDueDate && (
+                  <Badge variant="outline">
+                    提出期限: {new Date(submissionDueDate).toLocaleDateString("ja-JP")}
+                  </Badge>
+                )}
+              </div>
+              <form
+                action={updateSubmissionDueDate.bind(null, eventId, announcementVersionId)}
+                className="flex items-end gap-2"
+              >
+                <div className="grid gap-1.5">
+                  <Label htmlFor="submission_due_date" className="text-xs text-muted-foreground">
+                    提出期限を変更
+                  </Label>
+                  <Input
+                    id="submission_due_date"
+                    type="date"
+                    name="submission_due_date"
+                    defaultValue={submissionDueDate ?? ""}
+                    className="w-48"
+                  />
+                </div>
+                <SubmitButton variant="outline" size="sm" pendingText="保存中...">
+                  保存
+                </SubmitButton>
+              </form>
+            </div>
+          )}
           {failedCount > 0 && <p className="text-sm text-destructive">送信失敗: {failedCount}件</p>}
           {version.status === "draft" && !canPublish && (
             <p className="text-xs text-muted-foreground">公開するには、下の「添付ファイル」を1件以上追加してください。</p>
