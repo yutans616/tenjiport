@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { createEvent } from "../actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,9 +65,9 @@ export default async function NewEventPage() {
                 <Input id="end_date" type="date" name="end_date" required />
               </div>
             </div>
-            <Button type="submit" className="self-start">
+            <SubmitButton className="self-start" pendingText="作成中...">
               作成する
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>

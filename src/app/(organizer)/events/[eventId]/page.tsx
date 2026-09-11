@@ -2,12 +2,12 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { updateEvent } from "../actions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { SuccessBanner } from "@/components/organizer/success-banner";
+import { SubmitButton } from "@/components/organizer/submit-button";
 
 export default async function EventDetailPage({
   params,
@@ -83,9 +83,9 @@ export default async function EventDetailPage({
                 出展者フォームにCAPTCHA（自動入力対策）を表示する
               </label>
             )}
-            <Button type="submit" className="self-start">
+            <SubmitButton className="self-start" pendingText="保存中...">
               保存する
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -96,9 +97,9 @@ export function FieldForm({
         必須項目にする
       </label>
       <div className="flex gap-2">
-        <Button type="submit" className="self-start">
+        <SubmitButton className="self-start" pendingText={submitLabel.replace(/する$/, "中...")}>
           {submitLabel}
-        </Button>
+        </SubmitButton>
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel}>
             キャンセル

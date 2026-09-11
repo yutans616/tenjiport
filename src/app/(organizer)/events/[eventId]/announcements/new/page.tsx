@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { createAnnouncementDraft } from "../actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,9 +78,9 @@ export default async function NewAnnouncementPage({
               defaultParticipationId={participationId}
             />
 
-            <Button type="submit" className="self-start">
+            <SubmitButton className="self-start" pendingText="作成中...">
               下書きを作成
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>

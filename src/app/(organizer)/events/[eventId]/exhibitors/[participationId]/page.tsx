@@ -9,6 +9,7 @@ import {
   requestRevisionAction,
 } from "./actions";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -188,9 +189,9 @@ export default async function ExhibitorDetailPage({
                   </p>
                 )}
                 <Textarea name="reason" required rows={2} placeholder="キャンセル理由（例：出展辞退の申し出）" />
-                <Button type="submit" variant="destructive" className="self-start">
+                <SubmitButton variant="destructive" className="self-start" pendingText="キャンセル中...">
                   この出展者をキャンセルする
-                </Button>
+                </SubmitButton>
               </form>
             )}
           </CardContent>
@@ -218,9 +219,9 @@ export default async function ExhibitorDetailPage({
             {netBillable > 0 && (
               <form action={addUsageCorrectionAction.bind(null, eventId, participationId)} className="flex flex-col gap-2">
                 <Textarea name="reason" required rows={2} placeholder="訂正理由（例：重複登録、テスト登録）" />
-                <Button type="submit" variant="outline" className="self-start">
+                <SubmitButton variant="outline" className="self-start" pendingText="処理中...">
                   課金対象から除外する（訂正）
-                </Button>
+                </SubmitButton>
               </form>
             )}
           </CardContent>
@@ -246,9 +247,9 @@ export default async function ExhibitorDetailPage({
               </CardTitle>
               {latest.status === "submitted" && (
                 <form action={confirmSubmissionAction.bind(null, eventId, participationId, latest.id)}>
-                  <Button type="submit" size="sm">
+                  <SubmitButton size="sm" pendingText="処理中...">
                     確認済みにする
-                  </Button>
+                  </SubmitButton>
                 </form>
               )}
             </CardHeader>
@@ -272,9 +273,9 @@ export default async function ExhibitorDetailPage({
               <CardContent>
                 <form action={requestRevisionWithIds} className="flex flex-col gap-3">
                   <Textarea name="comment" required rows={3} placeholder="修正してほしい内容を記入してください" />
-                  <Button type="submit" className="self-start">
+                  <SubmitButton className="self-start" pendingText="送信中...">
                     修正依頼を送信
-                  </Button>
+                  </SubmitButton>
                 </form>
               </CardContent>
             </Card>
@@ -287,9 +288,9 @@ export default async function ExhibitorDetailPage({
                   修正依頼を送信済みのため、出展者からの再提出をお待ちください。再提出されると、ここから改めて修正を依頼できます。取り消すと提出済みの状態に戻ります（送信済みの通知メール自体は取り消せません）。
                 </p>
                 <form action={cancelRevisionRequestAction.bind(null, eventId, participationId, latest.id)}>
-                  <Button type="submit" variant="outline" size="sm" className="shrink-0">
+                  <SubmitButton variant="outline" size="sm" className="shrink-0" pendingText="処理中...">
                     修正依頼を取り消す
-                  </Button>
+                  </SubmitButton>
                 </form>
               </CardContent>
             </Card>

@@ -9,7 +9,7 @@ import {
   updateAnnouncementAudience,
   uploadAttachment,
 } from "../actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -149,22 +149,26 @@ export default async function AnnouncementDetailPage({
           </CardTitle>
           {version.status === "draft" && (
             <form action={publishAnnouncementAction.bind(null, eventId, announcementVersionId)}>
-              <Button type="submit" disabled={!canPublish} title={canPublish ? undefined : "添付ファイルを1件以上追加してください"}>
+              <SubmitButton
+                disabled={!canPublish}
+                title={canPublish ? undefined : "添付ファイルを1件以上追加してください"}
+                pendingText="処理中..."
+              >
                 公開して通知
-              </Button>
+              </SubmitButton>
             </form>
           )}
           {version.status === "published" && (
             <div className="flex gap-2">
               <form action={resendAnnouncementAction.bind(null, eventId, announcementVersionId)}>
-                <Button type="submit" variant="outline">
+                <SubmitButton variant="outline" pendingText="処理中...">
                   未確認者へ再通知
-                </Button>
+                </SubmitButton>
               </form>
               <form action={processNotificationsNowAction.bind(null, eventId, announcementVersionId)}>
-                <Button type="submit" variant="ghost" className="text-muted-foreground">
+                <SubmitButton variant="ghost" className="text-muted-foreground" pendingText="処理中...">
                   送信処理を実行
-                </Button>
+                </SubmitButton>
               </form>
             </div>
           )}

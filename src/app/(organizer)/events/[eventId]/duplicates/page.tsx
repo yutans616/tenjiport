@@ -2,9 +2,9 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { dismissDuplicate, mergeDuplicate } from "./actions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SubmitButton } from "@/components/organizer/submit-button";
 
 export default async function DuplicatesPage({
   params,
@@ -95,9 +95,9 @@ export default async function DuplicatesPage({
                         flag.participation_id_b,
                       )}
                     >
-                      <Button type="submit" size="sm">
+                      <SubmitButton size="sm" pendingText="統合中...">
                         左に統合する（右を無効化）
-                      </Button>
+                      </SubmitButton>
                     </form>
                     <form
                       action={mergeDuplicate.bind(
@@ -108,14 +108,14 @@ export default async function DuplicatesPage({
                         flag.participation_id_a,
                       )}
                     >
-                      <Button type="submit" variant="outline" size="sm">
+                      <SubmitButton variant="outline" size="sm" pendingText="統合中...">
                         右に統合する（左を無効化）
-                      </Button>
+                      </SubmitButton>
                     </form>
                     <form action={dismissDuplicate.bind(null, eventId, flag.id)}>
-                      <Button type="submit" variant="outline" size="sm">
+                      <SubmitButton variant="outline" size="sm" pendingText="処理中...">
                         別物として扱う
-                      </Button>
+                      </SubmitButton>
                     </form>
                   </div>
                 </CardContent>

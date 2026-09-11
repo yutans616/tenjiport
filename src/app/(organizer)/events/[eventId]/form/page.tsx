@@ -19,6 +19,7 @@ import {
 } from "./actions";
 import { SECTION_TEMPLATES } from "./templates";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -116,12 +117,14 @@ export default async function FormBuilderPage({
           </div>
           <div className="flex gap-2">
             <form action={publishFormWithIds}>
-              <Button type="submit">{form?.status === "published" ? "再公開する" : "公開して出展者を募集する"}</Button>
+              <SubmitButton pendingText="処理中...">
+                {form?.status === "published" ? "再公開する" : "公開して出展者を募集する"}
+              </SubmitButton>
             </form>
             <form action={regenerateTokenWithId}>
-              <Button type="submit" variant="outline">
+              <SubmitButton variant="outline" pendingText="処理中...">
                 URLを再発行(失効)
-              </Button>
+              </SubmitButton>
             </form>
             <Button
               type="button"
@@ -159,9 +162,9 @@ export default async function FormBuilderPage({
             <CardHeader className="flex flex-row items-center justify-between">
               <SectionTitleEditor title={section.title} updateAction={updateSectionTitle.bind(null, eventId, section.id)} />
               <form action={deleteSection.bind(null, eventId, section.id)}>
-                <Button type="submit" variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                <SubmitButton variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" pendingText="...">
                   <Trash2 />
-                </Button>
+                </SubmitButton>
               </form>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -183,9 +186,9 @@ export default async function FormBuilderPage({
               <div className="flex flex-wrap gap-2">
                 {PRESET_FIELD_OPTIONS.map((preset) => (
                   <form key={preset.key} action={addPresetField.bind(null, eventId, section.id, preset.key)}>
-                    <Button type="submit" variant="outline" size="sm" className="rounded-full">
+                    <SubmitButton variant="outline" size="sm" className="rounded-full" pendingText="追加中...">
                       + {preset.label}
-                    </Button>
+                    </SubmitButton>
                   </form>
                 ))}
               </div>
@@ -218,10 +221,10 @@ export default async function FormBuilderPage({
                   const alreadyAdded = usedTemplateTitles.has(template.title);
                   return (
                     <form key={key} action={addSectionTemplate.bind(null, eventId, formId, key)}>
-                      <Button type="submit" variant="outline" size="sm" disabled={alreadyAdded}>
+                      <SubmitButton variant="outline" size="sm" disabled={alreadyAdded} pendingText="追加中...">
                         + {template.title}
                         {alreadyAdded && "（追加済み）"}
-                      </Button>
+                      </SubmitButton>
                     </form>
                   );
                 })}
@@ -246,9 +249,9 @@ export default async function FormBuilderPage({
                         </option>
                       ))}
                     </NativeSelect>
-                    <Button type="submit" variant="outline">
+                    <SubmitButton variant="outline" pendingText="コピー中...">
                       コピーする
-                    </Button>
+                    </SubmitButton>
                   </form>
                   <p className="mt-1 text-xs text-muted-foreground">
                     選択したイベントのセクション・項目をすべて、このフォームの末尾に追加します（既存のセクションは変更されません）。
@@ -263,7 +266,7 @@ export default async function FormBuilderPage({
               <p className="mb-2 text-xs font-medium text-muted-foreground">カスタムセクションを追加</p>
               <form action={addSectionWithIds} className="flex gap-2">
                 <Input name="title" required placeholder="例：ブランド情報" />
-                <Button type="submit">追加</Button>
+                <SubmitButton pendingText="追加中...">追加</SubmitButton>
               </form>
             </div>
           </CardContent>

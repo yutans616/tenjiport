@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { updateBankAccountAction } from "./actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -120,9 +120,9 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
 
-        <Button type="submit" className="self-start">
+        <SubmitButton className="self-start" pendingText="保存中...">
           保存する
-        </Button>
+        </SubmitButton>
       </form>
 
       <p className="text-xs text-muted-foreground">この情報を閲覧・変更できるのはオーナーと管理者のみです。</p>

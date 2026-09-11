@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SubmissionForm } from "./SubmissionForm";
 import { resolveExhibitorProfile } from "./actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 
 export default async function ApplyFormPage({
   params,
@@ -83,15 +83,15 @@ export default async function ApplyFormPage({
         <div className="flex flex-col gap-2">
           {candidates.map((c) => (
             <form key={c.id} action={resolveExhibitorProfile.bind(null, token, event.id, c.id)}>
-              <Button type="submit" variant="outline" className="w-full justify-start">
+              <SubmitButton variant="outline" className="w-full justify-start" pendingText="処理中...">
                 {c.brand_name}（{c.company_name}）として続ける
-              </Button>
+              </SubmitButton>
             </form>
           ))}
           <form action={resolveExhibitorProfile.bind(null, token, event.id, "new")}>
-            <Button type="submit" variant="ghost" className="w-full justify-start text-muted-foreground">
+            <SubmitButton variant="ghost" className="w-full justify-start text-muted-foreground" pendingText="処理中...">
               新しいブランドとして応募する
-            </Button>
+            </SubmitButton>
           </form>
         </div>
       </main>

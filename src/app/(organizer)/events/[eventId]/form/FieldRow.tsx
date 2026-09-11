@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { FieldForm } from "./FieldForm";
 import { FIELD_TYPE_LABEL } from "./fieldTypes";
@@ -78,9 +79,9 @@ export function FieldRow({
           編集
         </Button>
         <form action={deleteAction}>
-          <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
+          <SubmitButton variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" pendingText="削除中...">
             削除
-          </Button>
+          </SubmitButton>
         </form>
       </div>
     </li>

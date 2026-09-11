@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { markInvoicePaid, markInvoiceUnpaid, resendInvoiceReminderAction, updateInvoiceDetails } from "../actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -96,9 +96,9 @@ export default async function InvoiceDetailPage({
           )}
           {invoice.payment_status === "unpaid" && (
             <form action={resendInvoiceReminderAction.bind(null, eventId, invoiceId)}>
-              <Button type="submit" variant="outline" size="sm" className="self-start">
+              <SubmitButton variant="outline" size="sm" className="self-start" pendingText="送信中...">
                 請求書を再送する
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
@@ -126,9 +126,9 @@ export default async function InvoiceDetailPage({
               <Label htmlFor="memo">主催者内部メモ</Label>
               <Input id="memo" name="memo" defaultValue={invoice.organizer_internal_memo ?? ""} />
             </div>
-            <Button type="submit" variant="outline" className="self-start">
+            <SubmitButton variant="outline" className="self-start" pendingText="保存中...">
               内容を訂正する
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>
@@ -157,9 +157,9 @@ export default async function InvoiceDetailPage({
                 <Label htmlFor="note">メモ（任意）</Label>
                 <Input id="note" name="note" />
               </div>
-              <Button type="submit" className="self-start">
+              <SubmitButton className="self-start" pendingText="処理中...">
                 入金済みにする
-              </Button>
+              </SubmitButton>
             </form>
           ) : (
             <form action={markInvoiceUnpaid.bind(null, eventId, invoiceId)} className="flex flex-col gap-3">
@@ -170,9 +170,9 @@ export default async function InvoiceDetailPage({
                 <Label htmlFor="note">訂正理由（任意）</Label>
                 <Input id="note" name="note" />
               </div>
-              <Button type="submit" variant="outline" className="self-start">
+              <SubmitButton variant="outline" className="self-start" pendingText="処理中...">
                 未入金に戻す
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </CardContent>

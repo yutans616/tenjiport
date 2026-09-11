@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Input } from "@/components/ui/input";
 import { CardTitle } from "@/components/ui/card";
 
@@ -25,9 +26,9 @@ export function SectionTitleEditor({
         className="flex flex-1 items-center gap-2"
       >
         <Input name="title" defaultValue={title} required autoFocus className="h-8 max-w-64" />
-        <Button type="submit" size="sm">
+        <SubmitButton size="sm" pendingText="保存中...">
           保存
-        </Button>
+        </SubmitButton>
         <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
           キャンセル
         </Button>

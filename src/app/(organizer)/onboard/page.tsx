@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { createOrganization } from "./actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,9 +76,9 @@ export default async function OnboardPage() {
             </CardContent>
           </Card>
 
-          <Button type="submit" className="w-full">
+          <SubmitButton className="w-full" pendingText="作成中...">
             作成する
-          </Button>
+          </SubmitButton>
         </form>
       </div>
     </div>

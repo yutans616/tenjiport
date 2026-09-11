@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { confirmInvoiceAction } from "../actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -120,7 +120,7 @@ export default async function ExhibitorInvoiceDetailPage({
             </Badge>
           ) : (
             <form action={confirmWithIds}>
-              <Button type="submit">内容を確認しました</Button>
+              <SubmitButton pendingText="処理中...">内容を確認しました</SubmitButton>
             </form>
           )}
         </CardContent>

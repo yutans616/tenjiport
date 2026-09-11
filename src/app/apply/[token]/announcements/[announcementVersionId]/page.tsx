@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { acknowledgeAnnouncement, deleteAnnouncementSubmission, uploadAnnouncementSubmission } from "../actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { MyAnnouncementRow } from "@/lib/notifications/types";
@@ -80,7 +80,7 @@ export default async function ExhibitorAnnouncementDetailPage({
 
           {!announcement.acknowledged_at && (
             <form action={acknowledgeWithIds}>
-              <Button type="submit">確認しました</Button>
+              <SubmitButton pendingText="処理中...">確認しました</SubmitButton>
             </form>
           )}
         </CardContent>

@@ -8,7 +8,7 @@ import {
   startStandardPlanAction,
 } from "./actions";
 import { startCardRegistration } from "./stripe-actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -80,7 +80,7 @@ export default async function PlanPage({
                 開始後、お支払い方法の登録が必須です（登録自体に課金は発生しません）。イベントを作成すると基本料金が即時課金され、超過分はイベント終了日を起点に自動課金されます。
               </p>
               <form action={startStandardPlanAction}>
-                <Button type="submit">通常プランを開始する</Button>
+                <SubmitButton pendingText="処理中...">通常プランを開始する</SubmitButton>
               </form>
             </CardContent>
           </Card>
@@ -97,9 +97,9 @@ export default async function PlanPage({
                   。従量課金は発生しません。
                 </p>
                 <form action={startAnnualPlanAction}>
-                  <Button type="submit" variant="outline">
+                  <SubmitButton variant="outline" pendingText="処理中...">
                     年間プランを開始する
-                  </Button>
+                  </SubmitButton>
                 </form>
               </CardContent>
             </Card>
@@ -161,16 +161,16 @@ export default async function PlanPage({
               </p>
               {contract.payment_method_status !== "valid" && (
                 <form action={startCardRegistration}>
-                  <Button type="submit" size="sm" variant="outline">
+                  <SubmitButton size="sm" variant="outline" pendingText="処理中...">
                     カードを登録する
-                  </Button>
+                  </SubmitButton>
                 </form>
               )}
             </div>
             <form action={changeToStandardPlanAction}>
-              <Button type="submit" variant="ghost" size="sm" className="self-start text-muted-foreground">
+              <SubmitButton variant="ghost" size="sm" className="self-start text-muted-foreground" pendingText="処理中...">
                 通常プランに切り替える
-              </Button>
+              </SubmitButton>
             </form>
           </CardContent>
         </Card>
@@ -276,9 +276,9 @@ export default async function PlanPage({
               通常プランのご利用には、お支払い方法の登録が必須です。登録が完了するまで、このページ以外の機能はご利用いただけません（カード登録時に課金は発生しません。実際の請求はイベント作成時（基本料金）とイベント終了日起点（超過分）で自動的に行われます）。
             </p>
             <form action={startCardRegistration}>
-              <Button type="submit" className="self-start">
+              <SubmitButton className="self-start" pendingText="処理中...">
                 カードを登録する
-              </Button>
+              </SubmitButton>
             </form>
           </CardContent>
         </Card>
@@ -303,17 +303,17 @@ export default async function PlanPage({
             </p>
             {contract.payment_method_status !== "valid" && (
               <form action={startCardRegistration}>
-                <Button type="submit" size="sm" variant="outline">
+                <SubmitButton size="sm" variant="outline" pendingText="処理中...">
                   カードを登録する
-                </Button>
+                </SubmitButton>
               </form>
             )}
           </div>
           {annualOffer && (
             <form action={changeToAnnualPlanAction}>
-              <Button type="submit" variant="ghost" size="sm" className="self-start text-muted-foreground">
+              <SubmitButton variant="ghost" size="sm" className="self-start text-muted-foreground" pendingText="処理中...">
                 年間プランに切り替える（年額¥{annualOffer.annual_fee_yen.toLocaleString("ja-JP")}のご案内）
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </CardContent>
