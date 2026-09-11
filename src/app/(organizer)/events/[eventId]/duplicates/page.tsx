@@ -82,6 +82,9 @@ export default async function DuplicatesPage({
                       <p className="text-xs text-muted-foreground">{b?.default_contact_email}</p>
                     </div>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    統合すると、無効化された側の課金対象は自動的に除外されます（重複登録として課金訂正されます）。
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     <form
                       action={mergeDuplicate.bind(
