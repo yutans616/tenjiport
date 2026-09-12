@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getOrganizerContext } from "@/lib/organizer/context";
+import { getMyActiveMemberships, getOrganizerContext } from "@/lib/organizer/context";
 import { isPlatformAdminEmail } from "@/lib/admin/context";
 import { AppSidebar } from "@/components/organizer/app-sidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -38,10 +38,13 @@ export default async function OrganizerLayout({ children }: { children: React.Re
     }
   }
 
+  const memberships = await getMyActiveMemberships();
+
   return (
     <SidebarProvider>
       <AppSidebar
-        organizationName={context.organizationName}
+        organizations={memberships.map((m) => ({ id: m.organizationId, name: m.organizationName }))}
+        currentOrganizationId={context.organizationId}
         userEmail={context.email}
         isPlatformAdmin={isPlatformAdminEmail(context.email)}
         isOwner={context.role === "owner"}

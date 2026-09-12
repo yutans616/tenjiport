@@ -7,21 +7,23 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { signOut } from "@/app/(organizer)/actions";
+import { OrgSwitcher } from "./OrgSwitcher";
 
 export function AppSidebar({
-  organizationName,
+  organizations,
+  currentOrganizationId,
   userEmail,
   isPlatformAdmin,
   isOwner,
 }: {
-  organizationName: string;
+  organizations: { id: string; name: string }[];
+  currentOrganizationId: string;
   userEmail: string | null;
   isPlatformAdmin?: boolean;
   isOwner?: boolean;
@@ -36,7 +38,10 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>{organizationName}</SidebarGroupLabel>
+          <OrgSwitcher
+            organizations={organizations.map((o) => ({ id: o.id, name: o.name }))}
+            currentOrganizationId={currentOrganizationId}
+          />
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
