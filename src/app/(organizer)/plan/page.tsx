@@ -4,6 +4,7 @@ import { getOrganizerContext } from "@/lib/organizer/context";
 import {
   changeToAnnualPlanAction,
   changeToStandardPlanAction,
+  retryServiceInvoiceAction,
   startAnnualPlanAction,
   startStandardPlanAction,
 } from "./actions";
@@ -244,6 +245,7 @@ export default async function PlanPage({
     charged: { label: "課金済み", variant: "secondary" },
     failed: { label: "課金失敗", variant: "destructive" },
     refunded: { label: "返金済み", variant: "outline" },
+    uncollectible: { label: "自動リトライ停止", variant: "destructive" },
   };
 
   const CHARGE_KIND_LABEL: Record<string, string> = { base_fee: "基本料金", overage: "超過分" };
@@ -361,6 +363,13 @@ export default async function PlanPage({
                       >
                         請求書PDF
                       </a>
+                    )}
+                    {(inv.status === "failed" || inv.status === "uncollectible") && (
+                      <form action={retryServiceInvoiceAction.bind(null, inv.id)}>
+                        <SubmitButton size="sm" variant="outline" pendingText="再試行中...">
+                          今すぐ再試行
+                        </SubmitButton>
+                      </form>
                     )}
                   </div>
                 </CardContent>

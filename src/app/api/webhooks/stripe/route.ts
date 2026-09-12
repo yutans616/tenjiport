@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import type Stripe from "stripe";
 import { createStripeClient } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { notifyChargeFailed, notifyChargeSucceeded } from "@/lib/billing/notifyOrganizer";
+import { notifyBillingRetriesExhausted, notifyChargeFailed, notifyChargeSucceeded } from "@/lib/billing/notifyOrganizer";
 import { generateAndAttachServiceInvoicePdf } from "@/lib/billing/generateServiceInvoiceDocument";
+import { MAX_RETRY_COUNT } from "@/lib/billing/runEventBilling";
 
 // service_invoicesの状態を更新し、対応するpayment_events行をprocessedにする。
 // service_invoice_idがmetadataに無い（このアプリが発行したPaymentIntentではない）
@@ -25,7 +26,7 @@ async function reflectPaymentIntentResult(
 
   const { data: invoice } = await serviceClient
     .from("service_invoices")
-    .select("id, organizer_organization_id, total_amount_yen, event_id, events(name)")
+    .select("id, organizer_organization_id, total_amount_yen, event_id, status, retry_count, events(name)")
     .eq("id", invoiceId)
     .single();
   if (!invoice) {
@@ -36,10 +37,18 @@ async function reflectPaymentIntentResult(
     return;
   }
 
+  // 失敗の場合、既にuncollectible（自動リトライ打ち切り済み）なら再度「打ち切り」扱いにはせず
+  // statusもuncollectibleのまま維持する（手動再試行が再び失敗しただけのケース）。
+  // まだ打ち切っていない請求が、このリトライで上限（retry_countは課金試行時に既に加算済み）に
+  // 達していればuncollectibleへ遷移し、専用の通知を一度だけ送る。
+  const alreadyUncollectible = invoice.status === "uncollectible";
+  const isExhausting = outcome === "failed" && !alreadyUncollectible && invoice.retry_count >= MAX_RETRY_COUNT;
+  const finalStatus = outcome === "charged" ? "charged" : alreadyUncollectible ? "uncollectible" : isExhausting ? "uncollectible" : "failed";
+
   await serviceClient
     .from("service_invoices")
     .update({
-      status: outcome,
+      status: finalStatus,
       charged_at: outcome === "charged" ? new Date().toISOString() : null,
       payment_event_id: paymentEventId,
     })
@@ -59,6 +68,12 @@ async function reflectPaymentIntentResult(
   if (outcome === "charged") {
     await generateAndAttachServiceInvoicePdf(serviceClient, invoiceId);
     await notifyChargeSucceeded({
+      organizationId: invoice.organizer_organization_id,
+      eventName,
+      totalAmountYen: invoice.total_amount_yen,
+    });
+  } else if (isExhausting) {
+    await notifyBillingRetriesExhausted({
       organizationId: invoice.organizer_organization_id,
       eventName,
       totalAmountYen: invoice.total_amount_yen,

@@ -71,3 +71,22 @@ export async function notifyChargeFailed(params: {
     `,
   );
 }
+
+// 自動リトライ（最大3回）を使い切った場合の一度限りの通知。以降は自動での再試行を
+// 停止するため、その旨と手動再試行の導線を案内する（notifyChargeFailedと同じ文面を
+// 繰り返し送り続けるのを避けるための専用メッセージ）。
+export async function notifyBillingRetriesExhausted(params: {
+  organizationId: string;
+  eventName: string;
+  totalAmountYen: number;
+}) {
+  await sendBillingEmail(
+    params.organizationId,
+    `【重要】${params.eventName}のご利用料金の自動引き落としを停止しました`,
+    `
+      <p>${params.eventName}のご利用料金 ¥${params.totalAmountYen.toLocaleString("ja-JP")} について、自動での引き落としを複数回試みましたが、いずれも完了しませんでした。</p>
+      <p>これ以上の自動再試行は行いません。サービスのご利用に制限はありませんが、お支払い方法をご確認・更新のうえ、下記ページから再試行をお願いいたします。</p>
+      <p><a href="${appUrl()}/plan">${appUrl()}/plan</a></p>
+    `,
+  );
+}

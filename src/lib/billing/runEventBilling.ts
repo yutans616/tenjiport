@@ -1,10 +1,10 @@
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { createStripeClient } from "@/lib/stripe";
-import { notifyChargeFailed, notifyInvoiceAwaitingPaymentMethod } from "./notifyOrganizer";
+import { notifyBillingRetriesExhausted, notifyChargeFailed, notifyInvoiceAwaitingPaymentMethod } from "./notifyOrganizer";
 
 const GRACE_PERIOD_DAYS = 1;
 const RETRY_INTERVAL_DAYS = 3;
-const MAX_RETRY_COUNT = 3;
+export const MAX_RETRY_COUNT = 3;
 
 export type ServiceInvoiceRow = {
   id: string;
@@ -54,17 +54,32 @@ export async function attemptCharge(
     .single();
 
   const nextRetryCount = invoice.retry_count + 1;
+  // このリトライで上限に達し、かつまだuncollectibleに遷移していない場合のみ「打ち切り」扱いにする
+  // （すでにuncollectibleな請求への手動再試行が再度失敗しても、毎回この通知を送り直さないため）。
+  const isExhausting = nextRetryCount >= MAX_RETRY_COUNT && invoice.status !== "uncollectible";
 
   if (!org?.payment_provider_customer_id || !org?.stripe_default_payment_method_id) {
     await serviceClient
       .from("service_invoices")
-      .update({ retry_count: nextRetryCount, last_charge_attempt_at: new Date().toISOString() })
+      .update({
+        retry_count: nextRetryCount,
+        last_charge_attempt_at: new Date().toISOString(),
+        ...(isExhausting ? { status: "uncollectible" } : {}),
+      })
       .eq("id", invoice.id);
-    await notifyInvoiceAwaitingPaymentMethod({
-      organizationId: invoice.organizer_organization_id,
-      eventName,
-      totalAmountYen: invoice.total_amount_yen,
-    });
+    if (isExhausting) {
+      await notifyBillingRetriesExhausted({
+        organizationId: invoice.organizer_organization_id,
+        eventName,
+        totalAmountYen: invoice.total_amount_yen,
+      });
+    } else {
+      await notifyInvoiceAwaitingPaymentMethod({
+        organizationId: invoice.organizer_organization_id,
+        eventName,
+        totalAmountYen: invoice.total_amount_yen,
+      });
+    }
     return { outcome: "no_payment_method" };
   }
 
@@ -112,16 +127,25 @@ export async function attemptCharge(
         stripe_payment_intent_id: stripePaymentIntentId ?? invoice.stripe_payment_intent_id,
         retry_count: nextRetryCount,
         last_charge_attempt_at: new Date().toISOString(),
+        ...(!stripePaymentIntentId && isExhausting ? { status: "uncollectible" } : {}),
       })
       .eq("id", invoice.id);
     console.error(`event billing: charge attempt failed for invoice ${invoice.id}:`, err);
     if (!stripePaymentIntentId) {
       // PaymentIntent自体が作られなかった（webhookも来ない）ケースのみ、ここから直接通知する。
-      await notifyChargeFailed({
-        organizationId: invoice.organizer_organization_id,
-        eventName,
-        totalAmountYen: invoice.total_amount_yen,
-      });
+      if (isExhausting) {
+        await notifyBillingRetriesExhausted({
+          organizationId: invoice.organizer_organization_id,
+          eventName,
+          totalAmountYen: invoice.total_amount_yen,
+        });
+      } else {
+        await notifyChargeFailed({
+          organizationId: invoice.organizer_organization_id,
+          eventName,
+          totalAmountYen: invoice.total_amount_yen,
+        });
+      }
     }
     return { outcome: "charge_error", paymentIntentId: stripePaymentIntentId };
   }
