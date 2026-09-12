@@ -131,9 +131,17 @@ export default async function ApplyFormPage({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-1 flex-col gap-6 p-4 py-10">
-      <div>
-        <p className="text-xs font-medium text-muted-foreground">{event.name}</p>
-        <h1 className="text-lg font-semibold tracking-tight">出展者情報入力</h1>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">{event.name}</p>
+          <h1 className="text-lg font-semibold tracking-tight">出展者情報入力</h1>
+        </div>
+        <a
+          href={`/apply/${token}/brands`}
+          className="shrink-0 pt-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
+        >
+          ブランド管理
+        </a>
       </div>
       {pendingRevisionComment && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-400">
