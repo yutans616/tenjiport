@@ -29,6 +29,7 @@ const ACTION_LABEL: Record<string, string> = {
   merge_duplicate: "重複登録の統合",
   refund_service_invoice: "返金（運営者による操作）",
   mark_service_invoice_paid: "入金確認（運営者による操作）",
+  update_organizer_organization_profile: "名称・請求先メールの変更",
 };
 
 const ENTITY_LABEL: Record<string, string> = {

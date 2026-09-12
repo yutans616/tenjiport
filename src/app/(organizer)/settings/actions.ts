@@ -5,6 +5,31 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 
+export async function updateOrganizationProfileAction(formData: FormData) {
+  const context = await getOrganizerContext();
+  if (!context) redirect("/login");
+  if (context.role !== "owner" && context.role !== "admin") {
+    throw new Error("この操作を行う権限がありません。");
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  const billingEmail = String(formData.get("billing_email") ?? "").trim();
+  if (!name || !billingEmail) {
+    throw new Error("組織名・請求先メールアドレスは必須です。");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_organizer_organization_profile", {
+    p_org_id: context.organizationId,
+    p_name: name,
+    p_billing_email: billingEmail,
+  });
+  if (error) throw new Error(`保存に失敗しました: ${error.message}`);
+
+  revalidatePath("/settings");
+  redirect("/settings?done=saved");
+}
+
 export async function updateBankAccountAction(formData: FormData) {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");

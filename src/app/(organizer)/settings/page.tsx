@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
-import { updateBankAccountAction } from "./actions";
+import { updateBankAccountAction, updateOrganizationProfileAction } from "./actions";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,11 @@ export default async function SettingsPage({
   }
 
   const supabase = await createClient();
+  const { data: org } = await supabase
+    .from("organizer_organizations")
+    .select("name, billing_email")
+    .eq("id", context.organizationId)
+    .single();
   const { data: bankAccount } = await supabase
     .from("organizer_bank_accounts")
     .select(
@@ -46,6 +51,30 @@ export default async function SettingsPage({
           ここで登録した銀行口座は、出展者向けの請求書ページに振込先として表示されます。
         </p>
       </div>
+
+      <form action={updateOrganizationProfileAction} className="flex flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">組織情報</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="org_name">組織名</Label>
+              <Input id="org_name" name="name" defaultValue={org?.name ?? ""} required />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="org_billing_email">請求先メールアドレス</Label>
+              <Input id="org_billing_email" name="billing_email" type="email" defaultValue={org?.billing_email ?? ""} required />
+              <p className="text-xs text-muted-foreground">
+                年間プランの請求書・課金失敗時の通知など、TenjiPortからの重要なお知らせの送付先です。
+              </p>
+            </div>
+            <SubmitButton className="self-start" pendingText="保存中...">
+              保存する
+            </SubmitButton>
+          </CardContent>
+        </Card>
+      </form>
 
       <form action={updateBankAccountAction} className="flex flex-col gap-6">
         <Card>
