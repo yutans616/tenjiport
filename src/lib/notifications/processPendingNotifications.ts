@@ -8,6 +8,7 @@ const TEMPLATE_SUBJECT: Record<string, string> = {
   invoice_publish: "請求書が届いています",
   invoice_reminder: "【再送】請求書のご確認をお願いします",
   revision_request: "入力内容の修正をお願いします",
+  revision_request_resend: "【再送】入力内容の修正をお願いします",
 };
 
 export type ProcessResult = { deliveryId: string; ok: boolean; detail: string };

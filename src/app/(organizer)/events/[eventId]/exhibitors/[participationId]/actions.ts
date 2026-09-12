@@ -30,6 +30,20 @@ export async function requestRevisionAction(
   revalidatePath(`/events/${eventId}/exhibitors/${participationId}`);
 }
 
+export async function resendRevisionRequestAction(eventId: string, participationId: string, revisionRequestId: string) {
+  const context = await getOrganizerContext();
+  if (!context) redirect("/login");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("resend_revision_request", {
+    p_revision_request_id: revisionRequestId,
+  });
+  if (error) throw new Error(`修正依頼の再送に失敗しました: ${error.message}`);
+
+  await processPendingNotifications(50);
+  revalidatePath(`/events/${eventId}/exhibitors/${participationId}`);
+}
+
 export async function cancelRevisionRequestAction(eventId: string, participationId: string, submissionVersionId: string) {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");

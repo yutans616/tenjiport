@@ -7,6 +7,7 @@ import {
   cancelRevisionRequestAction,
   confirmSubmissionAction,
   requestRevisionAction,
+  resendRevisionRequestAction,
 } from "./actions";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/organizer/submit-button";
@@ -90,6 +91,20 @@ export default async function ExhibitorDetailPage({
     .select("id, comment, requested_at, resolved_at")
     .in("submission_version_id", (versions ?? []).map((v) => v.id))
     .order("requested_at", { ascending: false });
+
+  // 修正依頼ごとの通知送信状況（同じrevision_requestに対して初回送信・再送の
+  // 複数行がありうるため、created_at降順で並べてMapに詰め最新を残す）。
+  const { data: revisionNotifications } = (revisionRequests ?? []).length
+    ? await supabase
+        .from("notification_deliveries")
+        .select("related_entity_id, status, error_message, created_at")
+        .eq("related_entity_type", "revision_request")
+        .in("related_entity_id", (revisionRequests ?? []).map((r) => r.id))
+        .order("created_at", { ascending: true })
+    : { data: [] };
+  const notificationByRevisionRequest = new Map(
+    (revisionNotifications ?? []).map((n) => [n.related_entity_id, n]),
+  );
 
   const requestRevisionWithIds = latest
     ? requestRevisionAction.bind(null, eventId, participationId, latest.id)
@@ -299,14 +314,33 @@ export default async function ExhibitorDetailPage({
           {revisionRequests && revisionRequests.length > 0 && (
             <div className="flex flex-col gap-2">
               <h2 className="text-sm font-semibold text-muted-foreground">修正依頼の履歴</h2>
-              {revisionRequests.map((r) => (
-                <Card key={r.id}>
-                  <CardContent className="py-3 text-sm">
-                    <p>{r.comment}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(r.requested_at).toLocaleString("ja-JP")}</p>
-                  </CardContent>
-                </Card>
-              ))}
+              {revisionRequests.map((r) => {
+                const notification = notificationByRevisionRequest.get(r.id);
+                const canResend = notification?.status === "failed" && participation.status === "revision_requested";
+                return (
+                  <Card key={r.id}>
+                    <CardContent className="flex flex-col gap-1.5 py-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="flex-1">{r.comment}</p>
+                        {notification?.status === "sent" && <Badge variant="secondary">通知: 送信済み</Badge>}
+                        {notification?.status === "pending" && <Badge variant="outline">通知: 送信待ち</Badge>}
+                        {notification?.status === "failed" && <Badge variant="destructive">通知: 失敗</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{new Date(r.requested_at).toLocaleString("ja-JP")}</p>
+                      {notification?.status === "failed" && notification.error_message && (
+                        <p className="text-xs text-destructive">{notification.error_message}</p>
+                      )}
+                      {canResend && (
+                        <form action={resendRevisionRequestAction.bind(null, eventId, participationId, r.id)}>
+                          <SubmitButton size="sm" variant="outline" pendingText="再送中...">
+                            修正依頼を再送する
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
 
