@@ -29,6 +29,15 @@ function daysAgo(days: number) {
   return d;
 }
 
+// events.end_dateは（JST基準で運用されるイベントの）タイムゾーン無しのdate型のため、
+// サーバーの実行タイムゾーン（Vercelは既定でUTC）に関わらずJSTの暦日で比較する必要がある。
+// 現状のcron実行時刻（毎日0:00 UTC=9:00 JST）ではUTC暦日とJST暦日がたまたま常に一致するため
+// 実害は出ていないが、cronの実行時刻が変わった場合に暦日がずれるのを防ぐため明示的に計算する。
+function daysAgoJstDateString(days: number): string {
+  const instant = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(instant);
+}
+
 // 確定済み（finalized・課金未試行）または前回失敗（failed）の請求に対してカード課金を
 // 試みる。成功・失敗の最終的な状態遷移はWebhook側（payment_intent.succeeded /
 // payment_intent.payment_failed）に一本化し、ここでは同期的なエラーはログのみに
@@ -156,7 +165,7 @@ export async function runEventBilling() {
   const results: { eventId: string; eventName: string; invoiceId: string; action: string }[] = [];
 
   // 1) まだ請求が確定していない、終了済み（猶予1日）・非下書きイベントを確定させる。
-  const cutoff = daysAgo(GRACE_PERIOD_DAYS).toISOString().slice(0, 10);
+  const cutoff = daysAgoJstDateString(GRACE_PERIOD_DAYS);
   const { data: candidateEvents } = await serviceClient
     .from("events")
     .select("id, name, organizer_organization_id, end_date")
