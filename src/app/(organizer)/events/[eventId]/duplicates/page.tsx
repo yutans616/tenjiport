@@ -6,6 +6,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/organizer/submit-button";
 
+const MATCH_REASON_LABEL: Record<string, string> = {
+  email: "メールアドレス一致",
+  company_name_similarity: "会社名が類似",
+};
+
 export default async function DuplicatesPage({
   params,
 }: {
@@ -68,7 +73,7 @@ export default async function DuplicatesPage({
               <Card key={flag.id}>
                 <CardContent className="flex flex-col gap-4">
                   <Badge variant="outline" className="w-fit font-normal">
-                    検知理由: メールアドレス一致
+                    検知理由: {MATCH_REASON_LABEL[flag.match_reason] ?? flag.match_reason}
                   </Badge>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="rounded-lg border p-3">

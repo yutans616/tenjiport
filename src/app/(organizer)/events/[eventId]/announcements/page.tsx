@@ -38,6 +38,54 @@ export default async function AnnouncementsPage({
 
   const today = new Date().toISOString().slice(0, 10);
 
+  // 対象・確認率の算出（公開済みバージョンのみ。下書きには対象読者・確認状況が存在しないため対象外）。
+  // イベントダッシュボード（events/[eventId]/page.tsx）と同じ「all/individualの対象解決 + 確認済み集計」の
+  // ロジックを、一覧の行単位に適用する。
+  const { data: participations } = await supabase.from("event_participations").select("id, status").eq("event_id", eventId);
+  const activeParticipationIds = (participations ?? [])
+    .filter((p) => p.status !== "cancelled" && p.status !== "merged")
+    .map((p) => p.id);
+  const activeIdSet = new Set(activeParticipationIds);
+
+  const publishedVersionIds = (announcements ?? [])
+    .flatMap((a) => (Array.isArray(a.announcement_versions) ? a.announcement_versions : [a.announcement_versions]))
+    .filter((v): v is NonNullable<typeof v> => !!v && v.status === "published")
+    .map((v) => v.id);
+
+  const audienceByVersion = new Map<string, { audience_type: string; event_participation_ids: string[] | null }>();
+  const ackedByVersion = new Map<string, Set<string>>();
+  if (publishedVersionIds.length > 0) {
+    const { data: audiences } = await supabase
+      .from("announcement_audiences")
+      .select("announcement_version_id, audience_type, event_participation_ids")
+      .in("announcement_version_id", publishedVersionIds);
+    for (const a of audiences ?? []) {
+      audienceByVersion.set(a.announcement_version_id, a);
+    }
+    const { data: acks } = await supabase
+      .from("acknowledgements")
+      .select("announcement_version_id, event_participation_id")
+      .in("announcement_version_id", publishedVersionIds);
+    for (const a of acks ?? []) {
+      if (!ackedByVersion.has(a.announcement_version_id)) ackedByVersion.set(a.announcement_version_id, new Set());
+      ackedByVersion.get(a.announcement_version_id)!.add(a.event_participation_id);
+    }
+  }
+
+  function resolveAudienceAndAckRate(versionId: string): { audienceLabel: string; ackRateLabel: string } {
+    const audience = audienceByVersion.get(versionId);
+    if (!audience) return { audienceLabel: "-", ackRateLabel: "-" };
+    const recipients =
+      audience.audience_type === "all"
+        ? activeParticipationIds
+        : (audience.event_participation_ids ?? []).filter((id) => activeIdSet.has(id));
+    const acked = ackedByVersion.get(versionId) ?? new Set();
+    const ackedCount = recipients.filter((id) => acked.has(id)).length;
+    const audienceLabel = audience.audience_type === "all" ? `全員（${recipients.length}社）` : `個別（${recipients.length}社）`;
+    const ackRateLabel = recipients.length > 0 ? `${ackedCount}/${recipients.length}社確認` : "対象者なし";
+    return { audienceLabel, ackRateLabel };
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -62,6 +110,7 @@ export default async function AnnouncementsPage({
             const versions = Array.isArray(a.announcement_versions) ? a.announcement_versions : [a.announcement_versions];
             const latest = versions.filter(Boolean).sort((x, y) => y!.version_number - x!.version_number)[0];
             if (!latest) return null;
+            const { audienceLabel, ackRateLabel } = resolveAudienceAndAckRate(latest.id);
             return (
               <Link key={a.id} href={`/events/${eventId}/announcements/${latest.id}`}>
                 <Card className="transition-colors hover:border-primary/40 hover:bg-accent/40">
@@ -72,6 +121,11 @@ export default async function AnnouncementsPage({
                         v{latest.version_number}
                         {latest.published_at ? ` ・ 公開: ${new Date(latest.published_at).toLocaleString("ja-JP")}` : ""}
                       </p>
+                      {latest.status === "published" && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          対象: {audienceLabel} ・ 確認状況: {ackRateLabel}
+                        </p>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {a.requires_submission && a.submission_due_date && (
