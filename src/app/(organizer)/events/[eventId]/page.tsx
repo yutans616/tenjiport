@@ -149,15 +149,29 @@ export default async function EventDetailPage({
     unpaidCount = count ?? 0;
   }
 
-  // 4. 通知送信失敗件数。
+  // 4. 通知送信失敗件数。template_typeによって、実際に確認・再送できるページが
+  // 異なる（資料＝announcements、請求書＝invoices、修正依頼＝exhibitors）ため、
+  // 最も件数の多い種別のページへ誘導する（常にannouncementsへ固定していた旧実装だと、
+  // 請求書・修正依頼の送信失敗だけの場合に行き止まりになっていた）。
   let failedNotificationCount = 0;
+  let failedNotificationHref = `/events/${eventId}/announcements`;
   if (activeParticipationIds.length > 0) {
-    const { count } = await supabase
+    const { data: failedDeliveries } = await supabase
       .from("notification_deliveries")
-      .select("id", { count: "exact", head: true })
+      .select("template_type")
       .in("event_participation_id", activeParticipationIds)
       .eq("status", "failed");
-    failedNotificationCount = count ?? 0;
+    failedNotificationCount = failedDeliveries?.length ?? 0;
+    const countByCategory = { announcements: 0, invoices: 0, exhibitors: 0 };
+    for (const d of failedDeliveries ?? []) {
+      if (d.template_type === "invoice_publish" || d.template_type === "invoice_reminder") countByCategory.invoices++;
+      else if (d.template_type === "revision_request" || d.template_type === "revision_request_resend") countByCategory.exhibitors++;
+      else countByCategory.announcements++;
+    }
+    const [topCategory] = (Object.entries(countByCategory) as [keyof typeof countByCategory, number][]).sort((a, b) => b[1] - a[1]);
+    if (topCategory && topCategory[1] > 0) {
+      failedNotificationHref = `/events/${eventId}/${topCategory[0]}`;
+    }
   }
 
   const updateEventWithId = updateEvent.bind(null, event.id);
@@ -183,7 +197,7 @@ export default async function EventDetailPage({
           />
           <StatTile href={`/events/${eventId}/invoices`} icon={Receipt} label="未入金" value={unpaidCount} alert />
           <StatTile
-            href={`/events/${eventId}/announcements`}
+            href={failedNotificationHref}
             icon={MailWarning}
             label="通知の送信失敗"
             value={failedNotificationCount}

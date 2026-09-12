@@ -20,19 +20,29 @@ export default async function ExhibitorInvoicesPage({
   const { data: event } = await supabase.from("events").select("id, name").eq("public_form_token", token).maybeSingle();
   if (!event) redirect(`/apply/${token}`);
 
-  const { data: participation } = await supabase
+  // RLSにより自分がメンバーの出展者プロフィールに紐づく参加のみが返るため、
+  // 同一イベントに複数ブランドで参加している場合も全件をここで拾う
+  // （旧実装はcreated_at最古の1件だけを見ており、2つ目以降のブランドの
+  // 請求書が永久に表示されないバグがあった）。
+  const { data: participations } = await supabase
     .from("event_participations")
-    .select("id")
+    .select("id, exhibitor_profiles(brand_name)")
     .eq("event_id", event.id)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
+  const participationIds = (participations ?? []).map((p) => p.id);
+  const brandNameByParticipation = new Map(
+    (participations ?? []).map((p) => {
+      const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
+      return [p.id, profile?.brand_name ?? "（未設定）"];
+    }),
+  );
+  const showBrandLabel = participationIds.length > 1;
 
-  const { data: invoices } = participation
+  const { data: invoices } = participationIds.length
     ? await supabase
         .from("exhibitor_invoices")
-        .select("id, amount_yen, due_date, invoice_ack_status, payment_status")
-        .eq("event_participation_id", participation.id)
+        .select("id, event_participation_id, amount_yen, due_date, invoice_ack_status, payment_status")
+        .in("event_participation_id", participationIds)
         .order("created_at", { ascending: false })
     : { data: [] };
 
@@ -54,6 +64,9 @@ export default async function ExhibitorInvoicesPage({
               <Card className="transition-colors hover:border-primary/40 hover:bg-accent/40">
                 <CardContent className="flex items-center justify-between py-4">
                   <div>
+                    {showBrandLabel && (
+                      <p className="text-xs text-muted-foreground">{brandNameByParticipation.get(inv.event_participation_id)}</p>
+                    )}
                     <p className="font-medium">¥{inv.amount_yen.toLocaleString("ja-JP")}</p>
                     <p className="text-sm text-muted-foreground">{inv.due_date ? `支払期限: ${inv.due_date}` : ""}</p>
                   </div>

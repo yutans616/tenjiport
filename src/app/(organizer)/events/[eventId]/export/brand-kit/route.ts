@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
+import { mapWithConcurrency } from "@/lib/concurrency";
+
+// ロゴのDB参照・Storageダウンロードを並列化する際の同時実行数上限。
+const DOWNLOAD_CONCURRENCY = 8;
 
 const FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"];
 
@@ -95,29 +99,40 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const serviceClient = createServiceRoleClient();
   const usedFilenames = new Set<string>();
 
-  for (const p of participations ?? []) {
+  // ロゴを持つ参加者を先に抽出し、DB参照・Storageダウンロードは並列で行う
+  // （最大300社規模のイベントで1件ずつ直列に待つとタイムアウトの恐れがあるため）。
+  // ZIPへの書き込み（ファイル名の重複解消）は並列処理の結果を元の順序で
+  // 1件ずつ行い、決定的な結果になるようにする。
+  const candidates = (participations ?? []).flatMap((p) => {
     const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
     const answers = latestAnswersByParticipation.get(p.id) ?? {};
     const logoAnswer = answers["logo_file"] as { fileAssetId?: string } | undefined;
-    if (!logoAnswer?.fileAssetId) continue;
+    return logoAnswer?.fileAssetId ? [{ fileAssetId: logoAnswer.fileAssetId, brandName: profile?.brand_name ?? "" }] : [];
+  });
 
+  const downloads = await mapWithConcurrency(candidates, DOWNLOAD_CONCURRENCY, async (candidate) => {
     // 認可の再チェック：主催者は自組織のファイルにアクセス可能なはずだが、
     // ZIP同梱前に必ず個別確認してから取り込む（受け入れ条件：非公開資料の混入防止）。
-    const { data: allowed } = await supabase.rpc("can_access_file_asset", { p_file_asset_id: logoAnswer.fileAssetId });
-    if (!allowed) continue;
+    const { data: allowed } = await supabase.rpc("can_access_file_asset", { p_file_asset_id: candidate.fileAssetId });
+    if (!allowed) return null;
 
     const { data: fileAsset } = await serviceClient
       .from("file_assets")
       .select("storage_key, filename, organizer_organization_id")
-      .eq("id", logoAnswer.fileAssetId)
+      .eq("id", candidate.fileAssetId)
       .single();
-    if (!fileAsset || fileAsset.organizer_organization_id !== context.organizationId) continue;
+    if (!fileAsset || fileAsset.organizer_organization_id !== context.organizationId) return null;
 
     const { data: blob, error: downloadError } = await serviceClient.storage.from("files").download(fileAsset.storage_key);
-    if (downloadError || !blob) continue;
+    if (downloadError || !blob) return null;
 
-    const ext = fileAsset.filename?.includes(".") ? fileAsset.filename.split(".").pop() : undefined;
-    const baseName = sanitizeFilenamePart(profile?.brand_name || "brand");
+    return { brandName: candidate.brandName, filename: fileAsset.filename, buffer: await blob.arrayBuffer() };
+  });
+
+  for (const result of downloads) {
+    if (!result) continue;
+    const ext = result.filename?.includes(".") ? result.filename.split(".").pop() : undefined;
+    const baseName = sanitizeFilenamePart(result.brandName || "brand");
     let filename = ext ? `${baseName}.${ext}` : baseName;
     let suffix = 2;
     while (usedFilenames.has(filename)) {
@@ -126,7 +141,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
     usedFilenames.add(filename);
 
-    zip.file(`logos/${filename}`, await blob.arrayBuffer());
+    zip.file(`logos/${filename}`, result.buffer);
   }
 
   const zipBuffer = await zip.generateAsync({ type: "arraybuffer" });

@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { isRepeatingAnswerValue, formatRepeatingAnswerValue } from "@/lib/forms/formatRepeatingAnswer";
+import { mapWithConcurrency } from "@/lib/concurrency";
+
+// 添付ファイルのDB参照・Storageダウンロードを並列化する際の同時実行数上限。
+const DOWNLOAD_CONCURRENCY = 8;
 
 const FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"];
 
@@ -82,6 +86,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const zip = new JSZip();
   const serviceClient = createServiceRoleClient();
   const usedFolderNames = new Set<string>();
+  // ファイルのDB参照・Storageダウンロードは後段でまとめて並列実行する
+  // （最大300社規模のイベントで1件ずつ直列に待つとタイムアウトの恐れがあるため）。
+  const downloadJobs: { folderName: string; fileAssetId: string }[] = [];
 
   for (const p of participations ?? []) {
     const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
@@ -127,40 +134,49 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const csvLines = summaryRows.map((row) => row.map(sanitizeCell).join(","));
     zip.file(`${folderName}/info.csv`, "﻿" + csvLines.join("\r\n"));
 
-    const usedFilenames = new Set<string>();
     for (const value of Object.values(answers)) {
       if (!value || typeof value !== "object" || !("fileAssetId" in value)) continue;
       const fileAssetId = (value as { fileAssetId?: string }).fileAssetId;
       if (!fileAssetId) continue;
-
-      // 認可の再チェック：ZIP同梱前に必ず個別確認してから取り込む（他社ファイルの混入防止）。
-      const { data: allowed } = await supabase.rpc("can_access_file_asset", { p_file_asset_id: fileAssetId });
-      if (!allowed) continue;
-
-      const { data: fileAsset } = await serviceClient
-        .from("file_assets")
-        .select("storage_key, filename, organizer_organization_id")
-        .eq("id", fileAssetId)
-        .single();
-      if (!fileAsset || fileAsset.organizer_organization_id !== context.organizationId) continue;
-
-      const { data: blob, error: downloadError } = await serviceClient.storage
-        .from("files")
-        .download(fileAsset.storage_key);
-      if (downloadError || !blob) continue;
-
-      const ext = fileAsset.filename?.includes(".") ? fileAsset.filename.split(".").pop() : undefined;
-      const baseName = sanitizeFolderName(fileAsset.filename?.replace(/\.[^.]+$/, "") || "file", "file");
-      let filename = ext ? `${baseName}.${ext}` : baseName;
-      let fsuffix = 2;
-      while (usedFilenames.has(filename)) {
-        filename = ext ? `${baseName}-${fsuffix}.${ext}` : `${baseName}-${fsuffix}`;
-        fsuffix += 1;
-      }
-      usedFilenames.add(filename);
-
-      zip.file(`${folderName}/files/${filename}`, await blob.arrayBuffer());
+      downloadJobs.push({ folderName, fileAssetId });
     }
+  }
+
+  const downloads = await mapWithConcurrency(downloadJobs, DOWNLOAD_CONCURRENCY, async (job) => {
+    // 認可の再チェック：ZIP同梱前に必ず個別確認してから取り込む（他社ファイルの混入防止）。
+    const { data: allowed } = await supabase.rpc("can_access_file_asset", { p_file_asset_id: job.fileAssetId });
+    if (!allowed) return null;
+
+    const { data: fileAsset } = await serviceClient
+      .from("file_assets")
+      .select("storage_key, filename, organizer_organization_id")
+      .eq("id", job.fileAssetId)
+      .single();
+    if (!fileAsset || fileAsset.organizer_organization_id !== context.organizationId) return null;
+
+    const { data: blob, error: downloadError } = await serviceClient.storage.from("files").download(fileAsset.storage_key);
+    if (downloadError || !blob) return null;
+
+    return { folderName: job.folderName, filename: fileAsset.filename, buffer: await blob.arrayBuffer() };
+  });
+
+  const usedFilenamesByFolder = new Map<string, Set<string>>();
+  for (const result of downloads) {
+    if (!result) continue;
+    const usedFilenames = usedFilenamesByFolder.get(result.folderName) ?? new Set<string>();
+    usedFilenamesByFolder.set(result.folderName, usedFilenames);
+
+    const ext = result.filename?.includes(".") ? result.filename.split(".").pop() : undefined;
+    const baseName = sanitizeFolderName(result.filename?.replace(/\.[^.]+$/, "") || "file", "file");
+    let filename = ext ? `${baseName}.${ext}` : baseName;
+    let fsuffix = 2;
+    while (usedFilenames.has(filename)) {
+      filename = ext ? `${baseName}-${fsuffix}.${ext}` : `${baseName}-${fsuffix}`;
+      fsuffix += 1;
+    }
+    usedFilenames.add(filename);
+
+    zip.file(`${result.folderName}/files/${filename}`, result.buffer);
   }
 
   const zipBuffer = await zip.generateAsync({ type: "arraybuffer" });
