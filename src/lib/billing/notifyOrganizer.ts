@@ -90,3 +90,20 @@ export async function notifyBillingRetriesExhausted(params: {
     `,
   );
 }
+
+export async function notifyRefundIssued(params: {
+  organizationId: string;
+  eventName: string;
+  amountYen: number;
+  isFullRefund: boolean;
+}) {
+  await sendBillingEmail(
+    params.organizationId,
+    `【TenjiPort】${params.eventName}のご利用料金を返金いたしました`,
+    `
+      <p>${params.eventName}のご利用料金について、¥${params.amountYen.toLocaleString("ja-JP")}${params.isFullRefund ? "（全額）" : "（一部）"}を返金いたしました。</p>
+      <p>ご登録のカードへの返金反映まで、数営業日いただく場合がございます。</p>
+      <p><a href="${appUrl()}/plan">${appUrl()}/plan</a></p>
+    `,
+  );
+}
