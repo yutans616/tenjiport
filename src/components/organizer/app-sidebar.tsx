@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { CalendarDays, CreditCard, HelpCircle, LogOut, Settings, Users } from "lucide-react";
+import { CalendarDays, CreditCard, HelpCircle, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,9 +18,11 @@ import { signOut } from "@/app/(organizer)/actions";
 export function AppSidebar({
   organizationName,
   userEmail,
+  isPlatformAdmin,
 }: {
   organizationName: string;
   userEmail: string | null;
+  isPlatformAdmin?: boolean;
 }) {
   return (
     <Sidebar>
@@ -85,6 +87,18 @@ export function AppSidebar({
                   }
                 />
               </SidebarMenuItem>
+              {isPlatformAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={
+                      <Link href="/admin">
+                        <ShieldCheck />
+                        <span>運営者ページ</span>
+                      </Link>
+                    }
+                  />
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

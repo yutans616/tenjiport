@@ -43,9 +43,23 @@ export default async function PlanPage({
 
   const { data: org } = await supabase
     .from("organizer_organizations")
-    .select("annual_plan_offer_config_id")
+    .select("annual_plan_offer_config_id, billing_exempt")
     .eq("id", context.organizationId)
     .single();
+
+  if (org?.billing_exempt) {
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
+        <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">
+            運営者アカウントのため、この組織は課金対象外です。イベント作成・利用のすべてを無制限にご利用いただけます。
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   let annualOffer: { annual_fee_yen: number; participant_cap_per_event: number; event_count_cap: number | null } | null = null;
   if (org?.annual_plan_offer_config_id) {
     const { data } = await supabase

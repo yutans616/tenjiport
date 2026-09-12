@@ -169,7 +169,12 @@ export async function runEventBilling() {
     .select("organizer_organization_id")
     .eq("status", "active")
     .eq("plan_type", "standard");
-  const orgsWithActiveStandardContract = new Set((activeContracts ?? []).map((c) => c.organizer_organization_id));
+  // 運営者アカウント（billing_exempt）は課金対象外。既存の契約が残っていても除外する。
+  const { data: exemptOrgs } = await serviceClient.from("organizer_organizations").select("id").eq("billing_exempt", true);
+  const exemptOrgIds = new Set((exemptOrgs ?? []).map((o) => o.id));
+  const orgsWithActiveStandardContract = new Set(
+    (activeContracts ?? []).map((c) => c.organizer_organization_id).filter((id) => !exemptOrgIds.has(id)),
+  );
 
   // 「超過分」の確認が既に済んでいるイベントだけを除外する（base_fee行はイベント作成時に
   // 作られるが、それは超過分の確定とは無関係なので対象から外してはいけない）。
@@ -216,6 +221,7 @@ export async function runEventBilling() {
     .or(`last_charge_attempt_at.is.null,last_charge_attempt_at.lte.${retryBefore}`);
 
   for (const row of retryCandidates ?? []) {
+    if (exemptOrgIds.has(row.organizer_organization_id)) continue;
     const event = Array.isArray(row.events) ? row.events[0] : row.events;
     await attemptCharge(row as ServiceInvoiceRow, event?.name ?? "（不明なイベント）");
     results.push({ eventId: row.event_id ?? "", eventName: event?.name ?? "", invoiceId: row.id, action: "retried" });

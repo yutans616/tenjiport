@@ -43,16 +43,29 @@ export async function createEvent(formData: FormData) {
 
   const supabase = await createClient();
 
+  // 運営者アカウント（billing_exempt）は契約・課金の対象外。プラン未選択でも
+  // イベントを作成でき、基本料金の課金も一切行わない（無制限利用）。
+  const { data: org } = await supabase
+    .from("organizer_organizations")
+    .select("billing_exempt")
+    .eq("id", context.organizationId)
+    .single();
+  const billingExempt = org?.billing_exempt === true;
+
   // プラン未選択（契約なし）の組織はイベントを作成できない（/plan へ誘導する）。
-  const { data: contract } = await supabase
-    .from("service_contracts")
-    .select("id, plan_type")
-    .eq("organizer_organization_id", context.organizationId)
-    .eq("status", "active")
-    .maybeSingle();
-  if (!contract) {
-    redirect("/plan");
-    return;
+  let contract: { id: string; plan_type: string } | null = null;
+  if (!billingExempt) {
+    const { data } = await supabase
+      .from("service_contracts")
+      .select("id, plan_type")
+      .eq("organizer_organization_id", context.organizationId)
+      .eq("status", "active")
+      .maybeSingle();
+    contract = data;
+    if (!contract) {
+      redirect("/plan");
+      return;
+    }
   }
 
   const fields = parseFormFields(formData);
@@ -71,7 +84,7 @@ export async function createEvent(formData: FormData) {
   // ここでの失敗はthrowせず/planへリダイレクトする——Server Actionの未処理エラーは
   // 「This page couldn't load」という不親切なクラッシュ画面になってしまうため、
   // カード未登録・決済失敗のどちらも/plan側で分かりやすく案内する。
-  if (contract.plan_type === "standard") {
+  if (!billingExempt && contract?.plan_type === "standard") {
     const { data: invoice, error: invoiceError } = await supabase.rpc("charge_event_base_fee", {
       p_event_id: event.id,
     });

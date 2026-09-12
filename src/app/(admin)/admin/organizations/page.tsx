@@ -14,7 +14,7 @@ export default async function AdminOrganizationsPage() {
 
   const { data: orgs } = await admin
     .from("organizer_organizations")
-    .select("id, name, billing_email, status, created_at")
+    .select("id, name, billing_email, status, billing_exempt, created_at")
     .order("created_at", { ascending: false });
 
   const { data: contracts } = await admin
@@ -57,9 +57,13 @@ export default async function AdminOrganizationsPage() {
                     <p className="text-xs text-muted-foreground">{org.billing_email}</p>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
-                    <Badge variant={contract ? "default" : "outline"}>
-                      {contract ? PLAN_LABEL[contract.plan_type] ?? contract.plan_type : "契約なし"}
-                    </Badge>
+                    {org.billing_exempt ? (
+                      <Badge variant="secondary">運営者（課金対象外）</Badge>
+                    ) : (
+                      <Badge variant={contract ? "default" : "outline"}>
+                        {contract ? PLAN_LABEL[contract.plan_type] ?? contract.plan_type : "契約なし"}
+                      </Badge>
+                    )}
                     <span className="text-muted-foreground">累計 {yen(net)}</span>
                     {uncollectible > 0 && <Badge variant="destructive">未回収 {yen(uncollectible)}</Badge>}
                   </div>
