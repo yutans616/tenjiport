@@ -28,7 +28,76 @@ type AnnualPlanUsageRow = {
 const BILLING_ERROR_MESSAGE: Record<string, string> = {
   charge_failed: "基本料金のお支払いに失敗したため、イベントの作成を中止しました。カード情報をご確認のうえ再度お試しください。",
   confirm_failed: "請求の確定に失敗したため、イベントの作成を中止しました。時間をおいて再度お試しください。",
+  annual_charge_failed: "年間プランのお支払いに失敗したため、契約を中止しました。カード情報をご確認のうえ再度お試しください。",
 };
+
+const CHARGE_KIND_LABEL: Record<string, string> = { base_fee: "基本料金", overage: "超過分", annual_fee: "年間プラン利用料" };
+const INVOICE_STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+  draft: { label: "下書き", variant: "outline" },
+  finalized: { label: "課金待ち", variant: "outline" },
+  charged: { label: "課金済み", variant: "secondary" },
+  failed: { label: "課金失敗", variant: "destructive" },
+  refunded: { label: "返金済み", variant: "outline" },
+  uncollectible: { label: "自動リトライ停止", variant: "destructive" },
+};
+
+function InvoiceHistoryList({
+  invoices,
+}: {
+  invoices: {
+    id: string;
+    charge_kind: string;
+    total_amount_yen: number;
+    status: string;
+    invoice_number: string | null;
+    invoice_file_id: string | null;
+    events: { name: string } | { name: string }[] | null;
+  }[];
+}) {
+  if (invoices.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <h2 className="text-sm font-semibold text-muted-foreground">請求履歴</h2>
+      {invoices.map((inv) => {
+        const event = Array.isArray(inv.events) ? inv.events[0] : inv.events;
+        const displayName = event?.name ?? (inv.charge_kind === "annual_fee" ? "年間プラン契約" : "（不明なイベント）");
+        const statusInfo = INVOICE_STATUS_LABEL[inv.status] ?? { label: inv.status, variant: "outline" as const };
+        return (
+          <Card key={inv.id}>
+            <CardContent className="flex items-center justify-between py-3 text-sm">
+              <span className="text-muted-foreground">
+                {displayName}
+                <span className="ml-1 text-xs">（{CHARGE_KIND_LABEL[inv.charge_kind] ?? inv.charge_kind}）</span>
+                {inv.invoice_number && <span className="ml-1 text-xs">{inv.invoice_number}</span>}
+              </span>
+              <span className="font-medium">¥{inv.total_amount_yen.toLocaleString("ja-JP")}</span>
+              <div className="flex items-center gap-2">
+                <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                {inv.invoice_file_id && (
+                  <a
+                    href={`/api/files/${inv.invoice_file_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary underline-offset-4 hover:underline"
+                  >
+                    請求書PDF
+                  </a>
+                )}
+                {(inv.status === "failed" || inv.status === "uncollectible") && (
+                  <form action={retryServiceInvoiceAction.bind(null, inv.id)}>
+                    <SubmitButton size="sm" variant="outline" pendingText="再試行中...">
+                      今すぐ再試行
+                    </SubmitButton>
+                  </form>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
 
 export default async function PlanPage({
   searchParams,
@@ -43,9 +112,10 @@ export default async function PlanPage({
 
   const { data: org } = await supabase
     .from("organizer_organizations")
-    .select("annual_plan_offer_config_id, billing_exempt")
+    .select("annual_plan_offer_config_id, billing_exempt, payment_provider_customer_id, stripe_default_payment_method_id")
     .eq("id", context.organizationId)
     .single();
+  const hasCardOnFile = !!(org?.payment_provider_customer_id && org?.stripe_default_payment_method_id);
 
   if (org?.billing_exempt) {
     return (
@@ -72,7 +142,7 @@ export default async function PlanPage({
 
   const { data: contract } = await supabase
     .from("service_contracts")
-    .select("id, plan_type, status, payment_method_status, started_at, pricing_config_id, annual_plan_config_id")
+    .select("id, plan_type, status, payment_method_status, billing_method, started_at, pricing_config_id, annual_plan_config_id")
     .eq("organizer_organization_id", context.organizationId)
     .eq("status", "active")
     .maybeSingle();
@@ -81,6 +151,13 @@ export default async function PlanPage({
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
         <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
+
+        {billingError && BILLING_ERROR_MESSAGE[billingError] && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {BILLING_ERROR_MESSAGE[billingError]}
+          </div>
+        )}
+
         <p className="text-sm text-muted-foreground">
           現在、有効な契約はありません。イベント数・出展者数の見込みに応じてプランをお選びください。
         </p>
@@ -111,11 +188,29 @@ export default async function PlanPage({
                   {annualOffer.event_count_cap ? `・年間${annualOffer.event_count_cap}開催まで` : "・開催数上限なし"}
                   。従量課金は発生しません。
                 </p>
-                <form action={startAnnualPlanAction}>
+                <form action={startAnnualPlanAction.bind(null, "invoice")}>
                   <SubmitButton variant="outline" pendingText="処理中...">
-                    年間プランを開始する
+                    年間プランを開始する（請求書払い）
                   </SubmitButton>
                 </form>
+                {hasCardOnFile ? (
+                  <form action={startAnnualPlanAction.bind(null, "card")}>
+                    <SubmitButton variant="outline" pendingText="処理中...">
+                      年間プランを開始する（登録済みのカードで即時決済）
+                    </SubmitButton>
+                  </form>
+                ) : (
+                  <div className="flex flex-col gap-2 rounded-lg border px-3 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      クレジットカード払いをご希望の場合は、先にカードを登録してください（登録自体に課金は発生しません）。
+                    </p>
+                    <form action={startCardRegistration}>
+                      <SubmitButton size="sm" variant="outline" pendingText="処理中...">
+                        カードを登録する
+                      </SubmitButton>
+                    </form>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -137,9 +232,23 @@ export default async function PlanPage({
     const eventCountCap = annualConfig?.event_count_cap ?? null;
     const isOverEventCountCap = eventCountCap !== null && eventsUsedCount > eventCountCap;
 
+    // 年間プランの請求（クレカ払いを選んだ契約のみ、年額1件のみ発生する）。
+    const { data: annualInvoices } = await supabase
+      .from("service_invoices")
+      .select("id, event_id, charge_kind, total_amount_yen, status, created_at, invoice_number, invoice_file_id, events(name)")
+      .eq("service_contract_id", contract.id)
+      .gt("total_amount_yen", 0)
+      .order("created_at", { ascending: false });
+
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
         <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
+
+        {billingError && BILLING_ERROR_MESSAGE[billingError] && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {BILLING_ERROR_MESSAGE[billingError]}
+          </div>
+        )}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -151,6 +260,10 @@ export default async function PlanPage({
               <div className="flex justify-between border-b py-1.5">
                 <dt className="text-muted-foreground">年額</dt>
                 <dd>¥{(annualConfig?.annual_fee_yen ?? 0).toLocaleString("ja-JP")}</dd>
+              </div>
+              <div className="flex justify-between border-b py-1.5">
+                <dt className="text-muted-foreground">お支払い方法</dt>
+                <dd>{contract.billing_method === "card" ? "クレジットカード" : "請求書払い（運営担当までお問い合わせください）"}</dd>
               </div>
               <div className="flex justify-between border-b py-1.5">
                 <dt className="text-muted-foreground">1開催あたりの上限</dt>
@@ -170,18 +283,20 @@ export default async function PlanPage({
             {annualConfig?.cap_definition_note && (
               <p className="text-xs text-muted-foreground">{annualConfig.cap_definition_note}</p>
             )}
-            <div className="flex items-center gap-3">
-              <p className="text-xs text-muted-foreground">
-                カード登録: {contract.payment_method_status === "valid" ? "登録済み" : "未登録"}
-              </p>
-              {contract.payment_method_status !== "valid" && (
-                <form action={startCardRegistration}>
-                  <SubmitButton size="sm" variant="outline" pendingText="処理中...">
-                    カードを登録する
-                  </SubmitButton>
-                </form>
-              )}
-            </div>
+            {contract.billing_method === "card" && (
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-muted-foreground">
+                  カード登録: {contract.payment_method_status === "valid" ? "登録済み" : "未登録"}
+                </p>
+                {contract.payment_method_status !== "valid" && (
+                  <form action={startCardRegistration}>
+                    <SubmitButton size="sm" variant="outline" pendingText="処理中...">
+                      カードを登録する
+                    </SubmitButton>
+                  </form>
+                )}
+              </div>
+            )}
             <form action={changeToStandardPlanAction}>
               <SubmitButton variant="ghost" size="sm" className="self-start text-muted-foreground" pendingText="処理中...">
                 通常プランに切り替える
@@ -189,6 +304,8 @@ export default async function PlanPage({
             </form>
           </CardContent>
         </Card>
+
+        <InvoiceHistoryList invoices={annualInvoices ?? []} />
 
         {isOverEventCountCap && (
           <Card className="border-destructive/40">
@@ -253,17 +370,6 @@ export default async function PlanPage({
     })
     .filter((e) => e.overageCount > 0);
 
-  const INVOICE_STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
-    draft: { label: "下書き", variant: "outline" },
-    finalized: { label: "課金待ち", variant: "outline" },
-    charged: { label: "課金済み", variant: "secondary" },
-    failed: { label: "課金失敗", variant: "destructive" },
-    refunded: { label: "返金済み", variant: "outline" },
-    uncollectible: { label: "自動リトライ停止", variant: "destructive" },
-  };
-
-  const CHARGE_KIND_LABEL: Record<string, string> = { base_fee: "基本料金", overage: "超過分" };
-
   // 超過0件の確認済みマーカー行（total_amount_yen=0）は請求として意味を持たないため表示しない。
   const { data: invoices } = await supabase
     .from("service_invoices")
@@ -326,11 +432,23 @@ export default async function PlanPage({
             )}
           </div>
           {annualOffer && (
-            <form action={changeToAnnualPlanAction}>
-              <SubmitButton variant="ghost" size="sm" className="self-start text-muted-foreground" pendingText="処理中...">
-                年間プランに切り替える（年額¥{annualOffer.annual_fee_yen.toLocaleString("ja-JP")}のご案内）
-              </SubmitButton>
-            </form>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">
+                年間プランのご案内：年額¥{annualOffer.annual_fee_yen.toLocaleString("ja-JP")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <form action={changeToAnnualPlanAction.bind(null, "invoice")}>
+                  <SubmitButton variant="ghost" size="sm" className="text-muted-foreground" pendingText="処理中...">
+                    年間プランに切り替える（請求書払い）
+                  </SubmitButton>
+                </form>
+                <form action={changeToAnnualPlanAction.bind(null, "card")}>
+                  <SubmitButton variant="ghost" size="sm" className="text-muted-foreground" pendingText="処理中...">
+                    年間プランに切り替える（登録済みのカードで即時決済）
+                  </SubmitButton>
+                </form>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -351,47 +469,7 @@ export default async function PlanPage({
         </div>
       )}
 
-      {invoices && invoices.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">請求履歴</h2>
-          {invoices.map((inv) => {
-            const event = Array.isArray(inv.events) ? inv.events[0] : inv.events;
-            const statusInfo = INVOICE_STATUS_LABEL[inv.status] ?? { label: inv.status, variant: "outline" as const };
-            return (
-              <Card key={inv.id}>
-                <CardContent className="flex items-center justify-between py-3 text-sm">
-                  <span className="text-muted-foreground">
-                    {event?.name ?? "（不明なイベント）"}
-                    <span className="ml-1 text-xs">（{CHARGE_KIND_LABEL[inv.charge_kind] ?? inv.charge_kind}）</span>
-                    {inv.invoice_number && <span className="ml-1 text-xs">{inv.invoice_number}</span>}
-                  </span>
-                  <span className="font-medium">¥{inv.total_amount_yen.toLocaleString("ja-JP")}</span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-                    {inv.invoice_file_id && (
-                      <a
-                        href={`/api/files/${inv.invoice_file_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary underline-offset-4 hover:underline"
-                      >
-                        請求書PDF
-                      </a>
-                    )}
-                    {(inv.status === "failed" || inv.status === "uncollectible") && (
-                      <form action={retryServiceInvoiceAction.bind(null, inv.id)}>
-                        <SubmitButton size="sm" variant="outline" pendingText="再試行中...">
-                          今すぐ再試行
-                        </SubmitButton>
-                      </form>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      <InvoiceHistoryList invoices={invoices ?? []} />
     </div>
   );
 }

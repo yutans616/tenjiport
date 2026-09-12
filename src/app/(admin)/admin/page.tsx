@@ -19,8 +19,10 @@ export default async function AdminOverviewPage() {
   const activeStandardCount = (activeContracts ?? []).filter((c) => c.plan_type === "standard").length;
   const activeAnnualCount = (activeContracts ?? []).filter((c) => c.plan_type === "annual").length;
 
-  // 年間プランは実際の課金（Stripe決済・service_invoices行の作成）がまだ実装されて
-  // いないため、以下の売上・リピート率・LTVはすべて通常プランの実績のみを反映する。
+  // 年間プランはクレカ払いを選んだ契約のみ実際の課金（service_invoices行・Stripe決済）が
+  // 発生する（請求書払いを選んだ契約はアプリ外の手動運用のため反映されない）。
+  // charge_kindを問わず charged_at が入っている行を素直に合算しているため、
+  // 年間プランのクレカ課金分もリピート率を除き自動的に含まれる。
   const { data: chargedInvoices } = await admin
     .from("service_invoices")
     .select("organizer_organization_id, charge_kind, total_amount_yen, refunded_amount_yen, charged_at")
@@ -62,7 +64,7 @@ export default async function AdminOverviewPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">概要</h1>
         <p className="mt-1 text-xs text-muted-foreground">
-          いずれも簡易的な指標です。年間プランは実際の課金機能が未実装のため、売上・リピート率・LTVは通常プランの実績のみを反映しています。
+          いずれも簡易的な指標です。年間プランのうち請求書払いを選んだ契約（アプリ外の手動運用）の金額は含まれません。リピート率は通常プランの実績のみを反映しています。
         </p>
       </div>
 

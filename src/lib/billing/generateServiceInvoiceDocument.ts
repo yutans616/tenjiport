@@ -4,7 +4,11 @@ import { generateServiceInvoicePdf } from "@/lib/pdf/generateServiceInvoicePdf";
 import { TENJIPORT_SELLER_INFO } from "@/lib/pdf/tenjiportSellerInfo";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 
-const CHARGE_KIND_LABEL: Record<string, string> = { base_fee: "TenjiPort利用料（基本料金）", overage: "TenjiPort利用料（超過分）" };
+const CHARGE_KIND_LABEL: Record<string, string> = {
+  base_fee: "TenjiPort利用料（基本料金）",
+  overage: "TenjiPort利用料（超過分）",
+  annual_fee: "TenjiPort利用料（年間プラン契約）",
+};
 
 // 課金成功時に、適格請求書としての記載要件を満たすPDFを自動生成しfile_assetsに登録・紐付ける。
 // 請求書番号もここで初めて採番する（課金が成功した行だけが本物の請求書番号を消費する）。

@@ -15,7 +15,7 @@ function yen(n: number) {
 
 const PLAN_LABEL: Record<string, string> = { standard: "通常", annual: "年間" };
 const CONTRACT_STATUS_LABEL: Record<string, string> = { active: "契約中", closed: "終了", cancelled: "解約" };
-const CHARGE_KIND_LABEL: Record<string, string> = { base_fee: "基本料金", overage: "超過分" };
+const CHARGE_KIND_LABEL: Record<string, string> = { base_fee: "基本料金", overage: "超過分", annual_fee: "年間プラン利用料" };
 const INVOICE_STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   draft: { label: "下書き", variant: "outline" },
   finalized: { label: "課金待ち", variant: "outline" },
@@ -100,10 +100,11 @@ export default async function AdminOrganizationDetailPage({ params }: { params: 
               const statusInfo = INVOICE_STATUS_LABEL[inv.status] ?? { label: inv.status, variant: "outline" as const };
               const remaining = inv.total_amount_yen - inv.refunded_amount_yen;
               const canRefund = inv.status === "charged" && remaining > 0 && !!inv.stripe_payment_intent_id;
+              const displayName = event?.name ?? (inv.charge_kind === "annual_fee" ? "年間プラン契約" : "（不明なイベント）");
               return (
                 <TableRow key={inv.id}>
                   <TableCell className="font-medium">
-                    {event?.name ?? "（不明なイベント）"}
+                    {displayName}
                     <span className="ml-1 text-xs text-muted-foreground">
                       （{CHARGE_KIND_LABEL[inv.charge_kind] ?? inv.charge_kind}）
                     </span>
