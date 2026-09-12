@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { CalendarDays, CreditCard, HelpCircle, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
+import { CalendarDays, CreditCard, HelpCircle, History, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -19,10 +19,12 @@ export function AppSidebar({
   organizationName,
   userEmail,
   isPlatformAdmin,
+  isOwner,
 }: {
   organizationName: string;
   userEmail: string | null;
   isPlatformAdmin?: boolean;
+  isOwner?: boolean;
 }) {
   return (
     <Sidebar>
@@ -77,6 +79,18 @@ export function AppSidebar({
                   }
                 />
               </SidebarMenuItem>
+              {isOwner && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={
+                      <Link href="/audit-log">
+                        <History />
+                        <span>監査ログ</span>
+                      </Link>
+                    }
+                  />
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   render={

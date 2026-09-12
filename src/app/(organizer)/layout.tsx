@@ -44,6 +44,7 @@ export default async function OrganizerLayout({ children }: { children: React.Re
         organizationName={context.organizationName}
         userEmail={context.email}
         isPlatformAdmin={isPlatformAdminEmail(context.email)}
+        isOwner={context.role === "owner"}
       />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
