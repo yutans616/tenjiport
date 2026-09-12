@@ -26,13 +26,26 @@ async function reflectPaymentIntentResult(
 
   const { data: invoice } = await serviceClient
     .from("service_invoices")
-    .select("id, organizer_organization_id, total_amount_yen, event_id, status, retry_count, events(name)")
+    .select("id, organizer_organization_id, total_amount_yen, event_id, status, retry_count, stripe_payment_intent_id, events(name)")
     .eq("id", invoiceId)
     .single();
   if (!invoice) {
     await serviceClient
       .from("payment_events")
       .update({ processing_status: "ignored", processed_at: new Date().toISOString() })
+      .eq("id", paymentEventId);
+    return;
+  }
+
+  // Stripeはwebhookの配信順序を保証しない。attemptChargeはリトライのたびに新しい
+  // PaymentIntentを作りstripe_payment_intent_idを都度上書きするため、古いリトライの
+  // 失敗イベントが新しいリトライの成功イベントより後に届くと、正しく確定済みの状態を
+  // 誤って巻き戻してしまう。このイベントが請求書の「現在の」試行に対するものでない
+  // 場合は、状態を変更せずignoredとして扱う。
+  if (invoice.stripe_payment_intent_id !== paymentIntent.id) {
+    await serviceClient
+      .from("payment_events")
+      .update({ processing_status: "ignored", processed_at: new Date().toISOString(), related_service_invoice_id: invoiceId })
       .eq("id", paymentEventId);
     return;
   }

@@ -3,23 +3,33 @@ import { createResendClient } from "@/lib/resend";
 
 // 請求関連の通知は出展者向けのnotification_deliveries（event_participation_id必須）に
 // 乗せられないため、主催者の招待メール（team/actions.ts）と同じ直接送信パターンを使う。
-// 送信失敗は課金処理自体を止めないよう、呼び出し側でエラーを握りつぶせる形にする。
+// 送信失敗は課金処理自体を止めないよう、ここで例外を握りつぶす（呼び出し側
+// ―特にStripe Webhookハンドラ―にまで伝播すると、既に正しく確定した
+// payment_eventsのprocessing_status='processed'が、外側のcatchで
+// 'error'に上書きされてしまうため）。
 async function sendBillingEmail(organizationId: string, subject: string, html: string) {
-  const serviceClient = createServiceRoleClient();
-  const { data: org } = await serviceClient
-    .from("organizer_organizations")
-    .select("billing_email, name")
-    .eq("id", organizationId)
-    .single();
-  if (!org?.billing_email) return;
+  try {
+    const serviceClient = createServiceRoleClient();
+    const { data: org } = await serviceClient
+      .from("organizer_organizations")
+      .select("billing_email, name")
+      .eq("id", organizationId)
+      .single();
+    if (!org?.billing_email) return;
 
-  const resend = createResendClient();
-  await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL!,
-    to: org.billing_email,
-    subject,
-    html,
-  });
+    const resend = createResendClient();
+    const { error } = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL!,
+      to: org.billing_email,
+      subject,
+      html,
+    });
+    // Resend SDKはAPIエラー時に例外を投げず{error}を返すだけのため、
+    // ここで明示的にログしないとcatchに落ちず、送信失敗が完全に見えなくなる。
+    if (error) console.error(`sendBillingEmail: resend API error for org ${organizationId}:`, error);
+  } catch (err) {
+    console.error(`sendBillingEmail failed for org ${organizationId}:`, err);
+  }
 }
 
 const appUrl = () => process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";

@@ -25,8 +25,26 @@ const INVOICE_STATUS_LABEL: Record<string, { label: string; variant: "default" |
   uncollectible: { label: "自動リトライ停止", variant: "destructive" },
 };
 
-export default async function AdminOrganizationDetailPage({ params }: { params: Promise<{ orgId: string }> }) {
+const ADMIN_ERROR_MESSAGE: Record<string, string> = {
+  invoice_not_found: "対象の請求書が見つかりませんでした。",
+  not_eligible_for_manual_payment: "この請求書は入金確認の対象ではありません。",
+  already_processed: "この請求書は既に処理済みです。",
+  update_failed: "入金確認の処理に失敗しました。時間をおいて再度お試しください。",
+  reason_required: "返金理由を入力してください。",
+  invalid_amount: "返金額を正しく入力してください。",
+  refund_amount_exceeds_remaining: "返金額が残額を超えているか、既に処理済みの請求書です。",
+  stripe_refund_failed: "Stripeでの返金処理に失敗しました。カード情報や決済状況をご確認のうえ、時間をおいて再度お試しください。",
+};
+
+export default async function AdminOrganizationDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orgId: string }>;
+  searchParams: Promise<{ adminError?: string }>;
+}) {
   const { orgId } = await params;
+  const { adminError } = await searchParams;
   const admin = createServiceRoleClient();
 
   const { data: org } = await admin
@@ -56,6 +74,12 @@ export default async function AdminOrganizationDetailPage({ params }: { params: 
         <h1 className="text-xl font-semibold tracking-tight">{org.name}</h1>
         <p className="text-sm text-muted-foreground">{org.billing_email}</p>
       </div>
+
+      {adminError && ADMIN_ERROR_MESSAGE[adminError] && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {ADMIN_ERROR_MESSAGE[adminError]}
+        </div>
+      )}
 
       <Card>
         <CardHeader>
