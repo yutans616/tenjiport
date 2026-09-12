@@ -29,6 +29,7 @@ const BILLING_ERROR_MESSAGE: Record<string, string> = {
   charge_failed: "基本料金のお支払いに失敗したため、イベントの作成を中止しました。カード情報をご確認のうえ再度お試しください。",
   confirm_failed: "請求の確定に失敗したため、イベントの作成を中止しました。時間をおいて再度お試しください。",
   annual_charge_failed: "年間プランのお支払いに失敗したため、契約を中止しました。カード情報をご確認のうえ再度お試しください。",
+  annual_invoice_failed: "年間プランの請求書発行に失敗したため、契約を中止しました。時間をおいて再度お試しください。",
 };
 
 const CHARGE_KIND_LABEL: Record<string, string> = { base_fee: "基本料金", overage: "超過分", annual_fee: "年間プラン利用料" };
@@ -49,6 +50,7 @@ function InvoiceHistoryList({
     charge_kind: string;
     total_amount_yen: number;
     status: string;
+    due_date?: string | null;
     invoice_number: string | null;
     invoice_file_id: string | null;
     events: { name: string } | { name: string }[] | null;
@@ -61,36 +63,48 @@ function InvoiceHistoryList({
       {invoices.map((inv) => {
         const event = Array.isArray(inv.events) ? inv.events[0] : inv.events;
         const displayName = event?.name ?? (inv.charge_kind === "annual_fee" ? "年間プラン契約" : "（不明なイベント）");
-        const statusInfo = INVOICE_STATUS_LABEL[inv.status] ?? { label: inv.status, variant: "outline" as const };
+        // finalized（未確定）は本来「カード課金待ち」だが、due_dateがある行は
+        // 請求書払い（銀行振込）のため、より正確な文言に差し替える。
+        const isAwaitingBankTransfer = inv.status === "finalized" && !!inv.due_date;
+        const statusInfo = isAwaitingBankTransfer
+          ? { label: "銀行振込待ち", variant: "outline" as const }
+          : (INVOICE_STATUS_LABEL[inv.status] ?? { label: inv.status, variant: "outline" as const });
         return (
           <Card key={inv.id}>
-            <CardContent className="flex items-center justify-between py-3 text-sm">
-              <span className="text-muted-foreground">
-                {displayName}
-                <span className="ml-1 text-xs">（{CHARGE_KIND_LABEL[inv.charge_kind] ?? inv.charge_kind}）</span>
-                {inv.invoice_number && <span className="ml-1 text-xs">{inv.invoice_number}</span>}
-              </span>
-              <span className="font-medium">¥{inv.total_amount_yen.toLocaleString("ja-JP")}</span>
-              <div className="flex items-center gap-2">
-                <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-                {inv.invoice_file_id && (
-                  <a
-                    href={`/api/files/${inv.invoice_file_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary underline-offset-4 hover:underline"
-                  >
-                    請求書PDF
-                  </a>
-                )}
-                {(inv.status === "failed" || inv.status === "uncollectible") && (
-                  <form action={retryServiceInvoiceAction.bind(null, inv.id)}>
-                    <SubmitButton size="sm" variant="outline" pendingText="再試行中...">
-                      今すぐ再試行
-                    </SubmitButton>
-                  </form>
-                )}
+            <CardContent className="flex flex-col gap-1 py-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">
+                  {displayName}
+                  <span className="ml-1 text-xs">（{CHARGE_KIND_LABEL[inv.charge_kind] ?? inv.charge_kind}）</span>
+                  {inv.invoice_number && <span className="ml-1 text-xs">{inv.invoice_number}</span>}
+                </span>
+                <span className="font-medium">¥{inv.total_amount_yen.toLocaleString("ja-JP")}</span>
+                <div className="flex items-center gap-2">
+                  <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                  {inv.invoice_file_id && (
+                    <a
+                      href={`/api/files/${inv.invoice_file_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary underline-offset-4 hover:underline"
+                    >
+                      請求書PDF
+                    </a>
+                  )}
+                  {(inv.status === "failed" || inv.status === "uncollectible") && (
+                    <form action={retryServiceInvoiceAction.bind(null, inv.id)}>
+                      <SubmitButton size="sm" variant="outline" pendingText="再試行中...">
+                        今すぐ再試行
+                      </SubmitButton>
+                    </form>
+                  )}
+                </div>
               </div>
+              {isAwaitingBankTransfer && (
+                <p className="text-xs text-muted-foreground">
+                  お振込期限: {new Date(inv.due_date!).toLocaleDateString("ja-JP")}
+                </p>
+              )}
             </CardContent>
           </Card>
         );
@@ -235,7 +249,7 @@ export default async function PlanPage({
     // 年間プランの請求（クレカ払いを選んだ契約のみ、年額1件のみ発生する）。
     const { data: annualInvoices } = await supabase
       .from("service_invoices")
-      .select("id, event_id, charge_kind, total_amount_yen, status, created_at, invoice_number, invoice_file_id, events(name)")
+      .select("id, event_id, charge_kind, total_amount_yen, status, due_date, created_at, invoice_number, invoice_file_id, events(name)")
       .eq("service_contract_id", contract.id)
       .gt("total_amount_yen", 0)
       .order("created_at", { ascending: false });
@@ -373,7 +387,7 @@ export default async function PlanPage({
   // 超過0件の確認済みマーカー行（total_amount_yen=0）は請求として意味を持たないため表示しない。
   const { data: invoices } = await supabase
     .from("service_invoices")
-    .select("id, event_id, charge_kind, total_amount_yen, status, created_at, invoice_number, invoice_file_id, events(name)")
+    .select("id, event_id, charge_kind, total_amount_yen, status, due_date, created_at, invoice_number, invoice_file_id, events(name)")
     .eq("service_contract_id", contract.id)
     .gt("total_amount_yen", 0)
     .order("created_at", { ascending: false });

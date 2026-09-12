@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { refundServiceInvoiceAction } from "./actions";
+import { markServiceInvoicePaidAction, refundServiceInvoiceAction } from "./actions";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,7 @@ export default async function AdminOrganizationDetailPage({ params }: { params: 
   const { data: invoices } = await admin
     .from("service_invoices")
     .select(
-      "id, charge_kind, total_amount_yen, refunded_amount_yen, status, charged_at, created_at, stripe_payment_intent_id, events(name)",
+      "id, charge_kind, total_amount_yen, refunded_amount_yen, status, due_date, charged_at, created_at, stripe_payment_intent_id, events(name)",
     )
     .eq("organizer_organization_id", orgId)
     .order("created_at", { ascending: false });
@@ -91,7 +91,7 @@ export default async function AdminOrganizationDetailPage({ params }: { params: 
               <TableHead>金額</TableHead>
               <TableHead>状態</TableHead>
               <TableHead>課金日</TableHead>
-              <TableHead className="text-right">返金</TableHead>
+              <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -100,6 +100,7 @@ export default async function AdminOrganizationDetailPage({ params }: { params: 
               const statusInfo = INVOICE_STATUS_LABEL[inv.status] ?? { label: inv.status, variant: "outline" as const };
               const remaining = inv.total_amount_yen - inv.refunded_amount_yen;
               const canRefund = inv.status === "charged" && remaining > 0 && !!inv.stripe_payment_intent_id;
+              const canMarkPaid = inv.charge_kind === "annual_fee" && inv.status === "finalized" && !!inv.due_date;
               const displayName = event?.name ?? (inv.charge_kind === "annual_fee" ? "年間プラン契約" : "（不明なイベント）");
               return (
                 <TableRow key={inv.id}>
@@ -119,9 +120,29 @@ export default async function AdminOrganizationDetailPage({ params }: { params: 
                     <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {inv.charged_at ? new Date(inv.charged_at).toLocaleDateString("ja-JP") : "-"}
+                    {inv.charged_at
+                      ? new Date(inv.charged_at).toLocaleDateString("ja-JP")
+                      : inv.due_date
+                        ? `期限: ${new Date(inv.due_date).toLocaleDateString("ja-JP")}`
+                        : "-"}
                   </TableCell>
                   <TableCell className="text-right">
+                    {canMarkPaid && (
+                      <form
+                        action={markServiceInvoicePaidAction.bind(null, orgId, inv.id)}
+                        className="flex flex-col items-end gap-1.5"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Label htmlFor={`paid_at_${inv.id}`} className="sr-only">
+                            入金日
+                          </Label>
+                          <Input id={`paid_at_${inv.id}`} name="paid_at" type="date" className="h-8 w-36" />
+                        </div>
+                        <SubmitButton size="sm" pendingText="処理中...">
+                          入金済みにする
+                        </SubmitButton>
+                      </form>
+                    )}
                     {canRefund && (
                       <form
                         action={refundServiceInvoiceAction.bind(null, orgId, inv.id)}

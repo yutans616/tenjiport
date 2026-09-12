@@ -6,6 +6,47 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { createStripeClient } from "@/lib/stripe";
 import { notifyRefundIssued } from "@/lib/billing/notifyOrganizer";
 
+// 年間プラン「請求書払い」（銀行振込）の入金確認。Stripe Webhookを経由しないため
+// finalized→chargedの遷移をここで手動で行う（それ以外のservice_invoicesの状態遷移は
+// すべてWebhook経由のため、対象をcharge_kind='annual_fee'かつdue_dateがある行に限定する）。
+export async function markServiceInvoicePaidAction(orgId: string, invoiceId: string, formData: FormData) {
+  const adminUser = await requirePlatformAdmin();
+  const serviceClient = createServiceRoleClient();
+
+  const paidAtRaw = String(formData.get("paid_at") ?? "").trim();
+  const paidAt = paidAtRaw ? new Date(paidAtRaw) : new Date();
+
+  const { data: invoice } = await serviceClient
+    .from("service_invoices")
+    .select("id, charge_kind, status, due_date")
+    .eq("id", invoiceId)
+    .eq("organizer_organization_id", orgId)
+    .single();
+  if (!invoice) throw new Error("請求書が見つかりません。");
+  if (invoice.charge_kind !== "annual_fee" || !invoice.due_date) {
+    throw new Error("この請求書は入金確認の対象ではありません。");
+  }
+  if (invoice.status !== "finalized") throw new Error("この請求書は既に処理済みです。");
+
+  await serviceClient
+    .from("service_invoices")
+    .update({ status: "charged", charged_at: paidAt.toISOString() })
+    .eq("id", invoiceId);
+
+  await serviceClient.from("audit_logs").insert({
+    actor_user_id: adminUser.id,
+    organization_id: orgId,
+    action_type: "mark_service_invoice_paid",
+    entity_type: "service_invoice",
+    entity_id: invoiceId,
+    after_json: { paid_at: paidAt.toISOString() },
+  });
+
+  revalidatePath(`/admin/organizations/${orgId}`);
+  revalidatePath("/admin/organizations");
+  revalidatePath("/admin");
+}
+
 // TenjiPort利用料請求（service_invoices）の返金。全額・部分返金の両方に対応する。
 // 返金額が請求額（の未返金残り）に達した時点でのみstatus='refunded'に遷移させる
 // （新しい中間ステータスは増やさず、refunded_amount_yenとの差分で判別する設計）。

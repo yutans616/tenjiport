@@ -5,6 +5,14 @@ const FONT_REGULAR = path.join(process.cwd(), "src/lib/pdf/fonts/NotoSansJP-Regu
 const FONT_BOLD = path.join(process.cwd(), "src/lib/pdf/fonts/NotoSansJP-Bold.ttf");
 const TAX_RATE = 0.1;
 
+export type ServiceInvoicePdfBankDetails = {
+  bankName: string;
+  branchName: string;
+  accountType: string;
+  accountNumber: string;
+  accountHolderName: string;
+};
+
 export type ServiceInvoicePdfData = {
   invoiceNumber: string;
   issueDate: Date;
@@ -16,6 +24,9 @@ export type ServiceInvoicePdfData = {
   registrationNumber: string | null;
   lineItemLabel: string;
   amountYen: number;
+  // 請求書払い（銀行振込）の場合のみ設定する。null＝クレカ即時決済済み（従来の挙動）。
+  dueDate: Date | null;
+  bankDetails: ServiceInvoicePdfBankDetails | null;
 };
 
 function formatYen(n: number) {
@@ -26,9 +37,9 @@ function formatDate(d: Date) {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-// TenjiPort自身が発行する利用料請求書（適格請求書）のPDF。exhibitor_invoices向けの
-// generateInvoicePdfと違い、支払いはクレジットカードの自動課金のみのため、
-// 振込先の案内は含めない（発行時点で既に課金は成功している）。
+// TenjiPort自身が発行する利用料請求書（適格請求書）のPDF。dueDateが無い（＝クレカ即時決済）
+// 場合はexhibitor_invoices向けgenerateInvoicePdfと違い振込先の案内を省略するが、
+// dueDateがある（＝請求書払い/銀行振込）場合は同フォーマットの振込先・支払期限を表示する。
 export async function generateServiceInvoicePdf(data: ServiceInvoicePdfData): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
@@ -51,7 +62,7 @@ export async function generateServiceInvoicePdf(data: ServiceInvoicePdfData): Pr
         doc.moveDown(0.75);
       }
 
-      doc.font("jp-bold").fontSize(22).text("請求書（お支払い完了）", left, doc.y, { width: contentWidth, align: "center" });
+      doc.font("jp-bold").fontSize(22).text(data.dueDate ? "請求書" : "請求書（お支払い完了）", left, doc.y, { width: contentWidth, align: "center" });
       doc.moveDown(1.5);
 
       const headerTop = doc.y;
@@ -114,15 +125,42 @@ export async function generateServiceInvoicePdf(data: ServiceInvoicePdfData): Pr
       doc.text(`ご請求金額（税込）: ${formatYen(data.amountYen)}`, left, doc.y, { width: contentWidth, align: "right" });
       doc.moveDown(1.5);
 
-      rule();
+      if (data.dueDate) {
+        doc.font("jp").fontSize(10);
+        doc.text(`お支払期限: ${formatDate(data.dueDate)}`, left, doc.y, { width: contentWidth });
+        doc.moveDown(1.5);
 
-      doc.font("jp").fontSize(10);
-      doc.text(
-        "上記の金額は、ご登録いただいたクレジットカードにより自動的にお支払いが完了しています。振込等の追加のお手続きは不要です。",
-        left,
-        doc.y,
-        { width: contentWidth },
-      );
+        if (data.bankDetails) {
+          doc.font("jp-bold").fontSize(11).text("お振込先", left, doc.y, { width: contentWidth });
+          doc.moveDown(0.4);
+          doc.font("jp").fontSize(10);
+          doc.text(`銀行名: ${data.bankDetails.bankName}`, left, doc.y, { width: contentWidth });
+          doc.text(`支店名: ${data.bankDetails.branchName}`, left, doc.y, { width: contentWidth });
+          doc.text(`口座: ${data.bankDetails.accountType} ${data.bankDetails.accountNumber}`, left, doc.y, { width: contentWidth });
+          doc.text(`口座名義: ${data.bankDetails.accountHolderName}`, left, doc.y, { width: contentWidth });
+          doc.moveDown(1.5);
+        }
+
+        rule();
+
+        doc.font("jp").fontSize(10);
+        doc.text(
+          "上記の通りご請求申し上げます。お振込み手数料は貴社にてご負担いただきますようお願い申し上げます。",
+          left,
+          doc.y,
+          { width: contentWidth },
+        );
+      } else {
+        rule();
+
+        doc.font("jp").fontSize(10);
+        doc.text(
+          "上記の金額は、ご登録いただいたクレジットカードにより自動的にお支払いが完了しています。振込等の追加のお手続きは不要です。",
+          left,
+          doc.y,
+          { width: contentWidth },
+        );
+      }
 
       doc.end();
     } catch (err) {

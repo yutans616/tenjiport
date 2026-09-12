@@ -6,8 +6,22 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { attemptCharge, type ServiceInvoiceRow } from "@/lib/billing/runEventBilling";
+import { generateAndAttachServiceInvoicePdf } from "@/lib/billing/generateServiceInvoiceDocument";
 
 type BillingMethod = "invoice" | "card";
+
+// その月の末日（YYYY-MM-DD）。年間プラン「請求書払い」の支払期限に使う。
+// new Date(y, m, 0)はローカルタイムゾーンの日付として構築されるため、toISOString()
+// （常にUTC変換）でスライスすると、UTCより進んだタイムゾーンでは前日にずれてしまう。
+// ローカルのgetter（getFullYear/getMonth/getDate）で読み戻すことでこれを避ける。
+function lastDayOfCurrentMonthIso(): string {
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const y = lastDay.getFullYear();
+  const m = String(lastDay.getMonth() + 1).padStart(2, "0");
+  const d = String(lastDay.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 // 年間プランをクレカ払いで開始・切替する際に契約と同時に即時課金する。失敗時は
 // rollbackAnnualPlanContractで契約自体を取り消す（イベント作成時の基本料金課金と
@@ -44,6 +58,28 @@ async function chargeNewAnnualContract(
     });
   }
   return true;
+}
+
+// 年間プランを請求書払い（銀行振込）で開始・切替する際に、契約と同時に適格請求書PDFを
+// 発行する（クレカ課金と同じフォーマット。支払期限はその月の末日）。発行に失敗した場合は
+// rollbackAnnualPlanContractで契約自体を取り消す（クレカ課金失敗時と同じ方針：この
+// 請求書払いは発行されたPDFが唯一の支払い案内であり、無ければ主催者は金額も振込先も
+// 知りようがないため、カード決済失敗時よりむしろ厳格にロールバックする必要がある）。
+async function issueInvoiceBillForNewAnnualContract(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  contractId: string,
+): Promise<boolean> {
+  const { data: invoice, error: invoiceError } = await supabase.rpc("issue_annual_plan_invoice_bill", {
+    p_service_contract_id: contractId,
+    p_due_date: lastDayOfCurrentMonthIso(),
+  });
+  if (invoiceError || !invoice) return false;
+
+  const serviceClient = createServiceRoleClient();
+  await generateAndAttachServiceInvoicePdf(serviceClient, invoice.id);
+
+  const { data: after } = await serviceClient.from("service_invoices").select("invoice_file_id").eq("id", invoice.id).single();
+  return !!after?.invoice_file_id;
 }
 
 // 課金失敗時、契約自体を取り消す（events/actions.tsのrollbackEventCreationと同じ理由：
@@ -126,6 +162,12 @@ export async function startAnnualPlanAction(billingMethod: BillingMethod) {
       await rollbackAnnualPlanContract(contract.id);
       redirect("/plan?billingError=annual_charge_failed");
     }
+  } else {
+    const succeeded = await issueInvoiceBillForNewAnnualContract(supabase, contract.id);
+    if (!succeeded) {
+      await rollbackAnnualPlanContract(contract.id);
+      redirect("/plan?billingError=annual_invoice_failed");
+    }
   }
 
   revalidatePath("/plan");
@@ -153,6 +195,12 @@ export async function changeToAnnualPlanAction(billingMethod: BillingMethod) {
     if (!succeeded) {
       await rollbackAnnualPlanContract(contract.id);
       redirect("/plan?billingError=annual_charge_failed");
+    }
+  } else {
+    const succeeded = await issueInvoiceBillForNewAnnualContract(supabase, contract.id);
+    if (!succeeded) {
+      await rollbackAnnualPlanContract(contract.id);
+      redirect("/plan?billingError=annual_invoice_failed");
     }
   }
 

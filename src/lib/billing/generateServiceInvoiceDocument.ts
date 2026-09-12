@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { generateServiceInvoicePdf } from "@/lib/pdf/generateServiceInvoicePdf";
-import { TENJIPORT_SELLER_INFO } from "@/lib/pdf/tenjiportSellerInfo";
+import { TENJIPORT_BANK_DETAILS, TENJIPORT_SELLER_INFO } from "@/lib/pdf/tenjiportSellerInfo";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 
 const CHARGE_KIND_LABEL: Record<string, string> = {
@@ -20,7 +20,7 @@ export async function generateAndAttachServiceInvoicePdf(
   try {
     const { data: invoice } = await serviceClient
       .from("service_invoices")
-      .select("id, organizer_organization_id, event_id, charge_kind, total_amount_yen, invoice_file_id, organizer_organizations(name)")
+      .select("id, organizer_organization_id, event_id, charge_kind, total_amount_yen, invoice_file_id, due_date, organizer_organizations(name)")
       .eq("id", invoiceId)
       .single();
     if (!invoice || invoice.invoice_file_id) return;
@@ -46,6 +46,8 @@ export async function generateAndAttachServiceInvoicePdf(
       registrationNumber: TENJIPORT_SELLER_INFO.registrationNumber,
       lineItemLabel: CHARGE_KIND_LABEL[invoice.charge_kind ?? ""] ?? "TenjiPort利用料",
       amountYen: invoice.total_amount_yen,
+      dueDate: invoice.due_date ? new Date(invoice.due_date) : null,
+      bankDetails: invoice.due_date ? TENJIPORT_BANK_DETAILS : null,
     });
 
     const filename = `請求書_${invoiceNumber}.pdf`;
