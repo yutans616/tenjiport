@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { sendPasswordResetEmail } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/onboard";
-  const [mode, setMode] = useState<"signin" | "signup">(
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">(
     searchParams.get("mode") === "signup" ? "signup" : "signin",
   );
   const [email, setEmail] = useState("");
@@ -39,9 +40,19 @@ function LoginForm() {
     setIsLoading(true);
     setErrorMessage(null);
     setInfoMessage(null);
-    const supabase = createClient();
 
     try {
+      if (mode === "forgot") {
+        const result = await sendPasswordResetEmail(email);
+        if (!result.ok) {
+          setErrorMessage(result.error);
+          return;
+        }
+        setInfoMessage("パスワード再設定用のメールを送信しました（該当するアカウントが存在する場合）。メール内のリンクを開いてください。");
+        return;
+      }
+
+      const supabase = createClient();
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
@@ -84,7 +95,9 @@ function LoginForm() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{mode === "signin" ? "主催者ログイン" : "主催者アカウントを作成"}</CardTitle>
+            <CardTitle className="text-base">
+              {mode === "signin" ? "主催者ログイン" : mode === "signup" ? "主催者アカウントを作成" : "パスワードの再設定"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -92,38 +105,64 @@ function LoginForm() {
                 <Label htmlFor="email">メールアドレス</Label>
                 <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="password">パスワード</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
+              {mode !== "forgot" && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="password">パスワード</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+              )}
 
               {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
               {infoMessage && <p className="text-sm text-green-700 dark:text-green-500">{infoMessage}</p>}
 
               <Button type="submit" disabled={isLoading} className="w-full">
-                {isLoading ? "処理中..." : mode === "signin" ? "ログイン" : "新規登録"}
+                {isLoading
+                  ? "処理中..."
+                  : mode === "signin"
+                    ? "ログイン"
+                    : mode === "signup"
+                      ? "新規登録"
+                      : "再設定メールを送信"}
               </Button>
             </form>
+
+            {mode === "signin" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("forgot");
+                  setErrorMessage(null);
+                  setInfoMessage(null);
+                }}
+                className="mt-3 text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline w-full"
+              >
+                パスワードをお忘れですか？
+              </button>
+            )}
           </CardContent>
         </Card>
 
         <button
           type="button"
           onClick={() => {
-            setMode(mode === "signin" ? "signup" : "signin");
+            setMode(mode === "signup" ? "signin" : mode === "forgot" ? "signin" : "signup");
             setErrorMessage(null);
             setInfoMessage(null);
           }}
           className="text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
-          {mode === "signin" ? "アカウントをお持ちでない方はこちら" : "既にアカウントをお持ちの方はこちら"}
+          {mode === "signin"
+            ? "アカウントをお持ちでない方はこちら"
+            : mode === "signup"
+              ? "既にアカウントをお持ちの方はこちら"
+              : "ログイン画面に戻る"}
         </button>
       </div>
     </div>
