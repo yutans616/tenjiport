@@ -10,6 +10,17 @@ import { Label } from "@/components/ui/label";
 import { SuccessBanner } from "@/components/organizer/success-banner";
 import Link from "next/link";
 
+const DELIVERY_TEMPLATE_LABEL: Record<string, string> = {
+  invoice_publish: "請求書発行",
+  invoice_reminder: "再請求",
+};
+const DELIVERY_STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+  sent: { label: "送信済み", variant: "secondary" },
+  pending: { label: "送信待ち", variant: "outline" },
+  failed: { label: "失敗", variant: "destructive" },
+  bounced: { label: "不達", variant: "destructive" },
+};
+
 export default async function InvoiceDetailPage({
   params,
   searchParams,
@@ -58,6 +69,13 @@ export default async function InvoiceDetailPage({
     .select("id, changed_at, field_changed, old_value, new_value, note")
     .eq("exhibitor_invoice_id", invoiceId)
     .order("changed_at", { ascending: false });
+
+  const { data: deliveries } = await supabase
+    .from("notification_deliveries")
+    .select("id, template_type, status, error_message, created_at")
+    .eq("related_entity_type", "exhibitor_invoice")
+    .eq("related_entity_id", invoiceId)
+    .order("created_at", { ascending: false });
 
   const { data: bankAccount } = await supabase
     .from("organizer_bank_accounts")
@@ -177,6 +195,32 @@ export default async function InvoiceDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {deliveries && deliveries.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">通知の送信状況</h2>
+          <Card>
+            <CardContent className="flex flex-col gap-2 py-3 text-sm">
+              {deliveries.map((d) => {
+                const statusInfo = DELIVERY_STATUS_LABEL[d.status] ?? { label: d.status, variant: "outline" as const };
+                return (
+                  <div key={d.id} className="flex flex-col gap-0.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">
+                        {DELIVERY_TEMPLATE_LABEL[d.template_type] ?? d.template_type} — {new Date(d.created_at).toLocaleString("ja-JP")}
+                      </span>
+                      <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                    </div>
+                    {d.status === "failed" && d.error_message && (
+                      <p className="text-xs text-destructive">{d.error_message}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {changeLogs && changeLogs.length > 0 && (
         <div className="flex flex-col gap-2">

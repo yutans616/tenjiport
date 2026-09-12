@@ -109,10 +109,13 @@ export default async function AnnouncementDetailPage({
   const { data: deliveries } = version.status === "published"
     ? await supabase
         .from("notification_deliveries")
-        .select("event_participation_id, status, error_message, attempt_count")
+        .select("event_participation_id, status, error_message, attempt_count, created_at")
         .eq("related_entity_type", "announcement_version")
         .eq("related_entity_id", announcementVersionId)
+        .order("created_at", { ascending: true })
     : { data: [] };
+  // 同じ出展者に複数回の配信試行（当初の送信＋再送）がありうるため、created_at昇順で
+  // 並べたうえでMapに詰めることで、常に最新の試行結果が残るようにする。
   const deliveryByParticipation = new Map((deliveries ?? []).map((d) => [d.event_participation_id, d]));
 
   const { data: submissions } = version.status === "published"
@@ -211,7 +214,11 @@ export default async function AnnouncementDetailPage({
               </form>
             </div>
           )}
-          {failedCount > 0 && <p className="text-sm text-destructive">送信失敗: {failedCount}件</p>}
+          {failedCount > 0 && (
+            <p className="text-sm text-destructive">
+              送信失敗: {failedCount}件（「未確認者へ再通知」で再送されます。理由は下表の各行をご確認ください）
+            </p>
+          )}
           {version.status === "draft" && !canPublish && (
             <p className="text-xs text-muted-foreground">公開するには、下の「添付ファイル」を1件以上追加してください。</p>
           )}
@@ -260,7 +267,14 @@ export default async function AnnouncementDetailPage({
                     <TableCell>
                       {delivery?.status === "sent" && <Badge variant="secondary">送信済み</Badge>}
                       {delivery?.status === "pending" && <Badge variant="outline">送信待ち</Badge>}
-                      {delivery?.status === "failed" && <Badge variant="destructive">失敗</Badge>}
+                      {delivery?.status === "failed" && (
+                        <div className="flex flex-col gap-0.5">
+                          <Badge variant="destructive">失敗</Badge>
+                          {delivery.error_message && (
+                            <p className="text-xs text-destructive">{delivery.error_message}</p>
+                          )}
+                        </div>
+                      )}
                       {!delivery && <Badge variant="outline">-</Badge>}
                     </TableCell>
                     {requiresSubmission && (
