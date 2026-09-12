@@ -36,6 +36,10 @@ export async function startCardRegistration() {
     mode: "setup",
     customer: customerId,
     payment_method_types: ["card"],
+    // 完了後のリダイレクト先でこのセッションが本当にこの組織のために作られたかを
+    // 検証するために埋め込む（複数組織に所属するユーザーが登録中にアクティブ組織を
+    // 切り替えた場合、別組織のカードが誤って紐付けられるのを防ぐ）。
+    client_reference_id: context.organizationId,
     success_url: `${appUrl}/plan/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/plan`,
   });

@@ -10,11 +10,18 @@ import { createClient } from "@/lib/supabase/server";
  * サーバー側でセッションを確立してからリダイレクトすることで、以降のServer Componentが
  * ログイン状態を認識できるようにする。
  */
+// "next"はアプリ内の相対パスのみを許可する（オープンリダイレクト対策。
+// "/"始まりかつ"//"始まりでない＝プロトコル相対URLでもない、を条件にする）。
+function isSafeNextPath(next: string | null): next is string {
+  return !!next && next.startsWith("/") && !next.startsWith("//");
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/onboard";
+  const nextParam = searchParams.get("next");
+  const next = isSafeNextPath(nextParam) ? nextParam : "/onboard";
 
   if (tokenHash && type) {
     const supabase = await createClient();

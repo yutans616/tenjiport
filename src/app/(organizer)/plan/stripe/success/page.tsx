@@ -23,7 +23,11 @@ export default async function StripeSetupSuccessPage({
   });
 
   const setupIntent = typeof session.setup_intent === "object" ? session.setup_intent : null;
-  const succeeded = session.status === "complete" && setupIntent?.status === "succeeded";
+  // このセッションが今アクティブな組織のために作られたものかを検証する（複数組織に
+  // 所属するユーザーが登録中にアクティブ組織を切り替えた場合、別組織のカードが誤って
+  // 紐付けられるのを防ぐ。client_reference_idはstartCardRegistrationで設定している）。
+  const belongsToCurrentOrg = session.client_reference_id === context.organizationId;
+  const succeeded = belongsToCurrentOrg && session.status === "complete" && setupIntent?.status === "succeeded";
   const paymentMethodId =
     typeof setupIntent?.payment_method === "string" ? setupIntent.payment_method : setupIntent?.payment_method?.id;
   const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
