@@ -8,9 +8,9 @@ export const demoConfig = {
   signupEnabled: false,
   signupUrl: "/login",
 
-  // 営業PDF・操作動画は未準備（tenjiport_demo_lp_spec.md 11章）。
-  documentViewUrl: null as string | null,
-  documentDownloadUrl: null as string | null,
+  // 営業PDF（scripts/build-service-guide-pdf.mjs、全11ページ）。
+  documentViewUrl: "/demo/tenjiport-service-guide.pdf" as string | null,
+  documentDownloadUrl: "/demo/tenjiport-service-guide.pdf" as string | null,
 
   // TimeRex等の契約が未確定のため、予約はメール相談のフォールバックのみ（5.1節P0）。
   bookingProvider: "TimeRex" as const,

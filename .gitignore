@@ -44,6 +44,9 @@ yarn-error.log*
 # supabase CLI local cache
 supabase/.temp/
 
+# scripts/build-service-guide-pdf.mjs の作業用一時ファイル
+/.tmp-pdf-build/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
