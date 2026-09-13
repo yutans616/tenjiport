@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { submitExhibitorForm, uploadSubmissionFile } from "./actions";
+import { submitExhibitorForm, createSubmissionFileUploadUrl, finalizeSubmissionFileUpload } from "./actions";
+import { uploadFileToSignedUrl } from "@/lib/storage/uploadToSignedUrl";
+import { MAX_UPLOAD_BYTES } from "@/lib/storage/uploadLimits";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -439,16 +442,36 @@ function FileFieldInput({
     setIsUploading(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.set("file", file);
-    const result = await uploadSubmissionFile(submissionVersionId, formData);
+    try {
+      const urlResult = await createSubmissionFileUploadUrl(submissionVersionId, file.name, file.size);
+      if (!urlResult.ok) {
+        setError(urlResult.error);
+        return;
+      }
 
-    setIsUploading(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+      await uploadFileToSignedUrl(urlResult.storageKey, urlResult.token, file);
+
+      const finalizeResult = await finalizeSubmissionFileUpload(
+        submissionVersionId,
+        urlResult.storageKey,
+        file.name,
+        file.size,
+        file.type,
+      );
+      if (!finalizeResult.ok) {
+        setError(finalizeResult.error);
+        return;
+      }
+
+      onChange(fieldKey, { fileAssetId: finalizeResult.fileAssetId, filename: finalizeResult.filename });
+    } catch (err) {
+      // ネットワーク切断等、Server Action自体が例外を投げるケースをここで確実に拾う
+      // （catch漏れがあると「アップロード中...」の表示のまま固まり、エラーも出ないまま
+      // 反映されないように見えるため）。
+      setError(err instanceof Error ? err.message : "アップロードに失敗しました。もう一度お試しください。");
+    } finally {
+      setIsUploading(false);
     }
-    onChange(fieldKey, { fileAssetId: result.fileAssetId, filename: result.filename });
   }
 
   return (
@@ -460,14 +483,19 @@ function FileFieldInput({
             差し替える
             <input type="file" className="hidden" onChange={handleFileChange} disabled={isUploading} />
           </label>
+          {isUploading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
         </div>
       ) : (
         <label className="w-fit cursor-pointer">
-          <span className="inline-flex items-center rounded-lg border border-input px-3 py-1.5 text-sm hover:bg-muted">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-1.5 text-sm hover:bg-muted">
+            {isUploading && <Loader2 className="size-3.5 animate-spin" />}
             {isUploading ? "アップロード中..." : "ファイルを選択"}
           </span>
           <input type="file" className="hidden" onChange={handleFileChange} disabled={isUploading} />
         </label>
+      )}
+      {!value && !isUploading && (
+        <p className="text-xs text-muted-foreground">{MAX_UPLOAD_BYTES / 1024 / 1024}MBまでのファイルをアップロードできます。</p>
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

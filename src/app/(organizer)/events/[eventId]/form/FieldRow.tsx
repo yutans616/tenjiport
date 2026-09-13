@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { Badge } from "@/components/ui/badge";
@@ -22,10 +23,14 @@ export function FieldRow({
   field,
   updateAction,
   deleteAction,
+  moveUpAction,
+  moveDownAction,
 }: {
   field: FieldRowData;
   updateAction: (formData: FormData) => void | Promise<void>;
   deleteAction: (formData: FormData) => void | Promise<void>;
+  moveUpAction?: (formData: FormData) => void | Promise<void>;
+  moveDownAction?: (formData: FormData) => void | Promise<void>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const choicesSummary = formatChoicesSummary(field.options_json);
@@ -74,7 +79,29 @@ export function FieldRow({
           <span className="text-xs text-muted-foreground">{choicesSummary ?? repeatingSummary}</span>
         )}
       </span>
-      <div className="flex shrink-0 gap-1">
+      <div className="flex shrink-0 items-center gap-1">
+        {moveUpAction ? (
+          <form action={moveUpAction}>
+            <SubmitButton variant="ghost" size="icon" className="size-7 text-muted-foreground" pendingText="…" title="上へ移動">
+              <ChevronUp className="size-3.5" />
+            </SubmitButton>
+          </form>
+        ) : (
+          <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" disabled title="上へ移動">
+            <ChevronUp className="size-3.5" />
+          </Button>
+        )}
+        {moveDownAction ? (
+          <form action={moveDownAction}>
+            <SubmitButton variant="ghost" size="icon" className="size-7 text-muted-foreground" pendingText="…" title="下へ移動">
+              <ChevronDown className="size-3.5" />
+            </SubmitButton>
+          </form>
+        ) : (
+          <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" disabled title="下へ移動">
+            <ChevronDown className="size-3.5" />
+          </Button>
+        )}
         <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
           編集
         </Button>

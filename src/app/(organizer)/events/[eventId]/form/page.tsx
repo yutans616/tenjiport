@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import {
@@ -12,6 +12,8 @@ import {
   deleteField,
   deleteSection,
   ensureDraftForm,
+  moveField,
+  moveSection,
   publishForm,
   regeneratePublicToken,
   updateField,
@@ -157,31 +159,63 @@ export default async function FormBuilderPage({
       <div className="flex flex-col gap-4">
         <h2 className="text-sm font-semibold text-muted-foreground">セクション・項目</h2>
 
-        {sections?.map((section) => (
-          <Card key={section.id}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <SectionTitleEditor title={section.title} updateAction={updateSectionTitle.bind(null, eventId, section.id)} />
-              <form action={deleteSection.bind(null, eventId, section.id)}>
-                <SubmitButton variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" pendingText="...">
-                  <Trash2 />
-                </SubmitButton>
-              </form>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              {(section.form_fields ?? []).length > 0 && (
-                <ul className="flex flex-col gap-2">
-                  {(section.form_fields ?? [])
-                    .sort((a, b) => a.order - b.order)
-                    .map((field) => (
+        {sections?.map((section, sectionIndex) => {
+          const isFirstSection = sectionIndex === 0;
+          const isLastSection = sectionIndex === (sections?.length ?? 0) - 1;
+          const sortedFields = (section.form_fields ?? []).slice().sort((a, b) => a.order - b.order);
+          return (
+            <Card key={section.id}>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div className="flex items-center gap-1">
+                  {isFirstSection ? (
+                    <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" disabled title="セクションを上へ移動">
+                      <ChevronUp className="size-3.5" />
+                    </Button>
+                  ) : (
+                    <form action={moveSection.bind(null, eventId, formId, section.id, "up")}>
+                      <SubmitButton variant="ghost" size="icon" className="size-7 text-muted-foreground" pendingText="…" title="セクションを上へ移動">
+                        <ChevronUp className="size-3.5" />
+                      </SubmitButton>
+                    </form>
+                  )}
+                  {isLastSection ? (
+                    <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" disabled title="セクションを下へ移動">
+                      <ChevronDown className="size-3.5" />
+                    </Button>
+                  ) : (
+                    <form action={moveSection.bind(null, eventId, formId, section.id, "down")}>
+                      <SubmitButton variant="ghost" size="icon" className="size-7 text-muted-foreground" pendingText="…" title="セクションを下へ移動">
+                        <ChevronDown className="size-3.5" />
+                      </SubmitButton>
+                    </form>
+                  )}
+                  <SectionTitleEditor title={section.title} updateAction={updateSectionTitle.bind(null, eventId, section.id)} />
+                </div>
+                <form action={deleteSection.bind(null, eventId, section.id)}>
+                  <SubmitButton variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" pendingText="...">
+                    <Trash2 />
+                  </SubmitButton>
+                </form>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {sortedFields.length > 0 && (
+                  <ul className="flex flex-col gap-2">
+                    {sortedFields.map((field, fieldIndex) => (
                       <FieldRow
                         key={field.id}
                         field={field}
                         updateAction={updateField.bind(null, eventId, field.id)}
                         deleteAction={deleteField.bind(null, eventId, field.id)}
+                        moveUpAction={fieldIndex === 0 ? undefined : moveField.bind(null, eventId, section.id, field.id, "up")}
+                        moveDownAction={
+                          fieldIndex === sortedFields.length - 1
+                            ? undefined
+                            : moveField.bind(null, eventId, section.id, field.id, "down")
+                        }
                       />
                     ))}
-                </ul>
-              )}
+                  </ul>
+                )}
 
               <div className="flex flex-wrap gap-2">
                 {PRESET_FIELD_OPTIONS.map((preset) => (
@@ -205,7 +239,8 @@ export default async function FormBuilderPage({
               </details>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
 
         <Card className="border-dashed">
           <CardHeader>

@@ -8,6 +8,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { processPendingNotifications } from "@/lib/notifications/processPendingNotifications";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
+import { createSignedUpload } from "@/lib/storage/signedUpload";
 
 async function requireOrganizerEvent(eventId: string) {
   const context = await getOrganizerContext();
@@ -146,34 +147,38 @@ export async function updateAnnouncementAudience(
 }
 
 export type UploadAttachmentResult = { ok: true } | { ok: false; error: string };
+export type CreateAttachmentUploadUrlResult = { ok: true; storageKey: string; token: string } | { ok: false; error: string };
 
-export async function uploadAttachment(
+// フェーズ1：署名付きアップロードURLを発行する（ファイル本体はブラウザから直接
+// Supabase Storageへアップロードする。理由はsignedUpload.ts参照）。
+export async function createAttachmentUploadUrl(
+  eventId: string,
+  filename: string,
+  fileSize: number,
+): Promise<CreateAttachmentUploadUrlResult> {
+  const { context } = await requireOrganizerEvent(eventId);
+  const safeFilename = sanitizeStorageFilename(filename);
+  const storageKey = `${context.organizationId}/${eventId}/${randomUUID()}-${safeFilename}`;
+  return createSignedUpload(storageKey, fileSize);
+}
+
+// フェーズ2：ブラウザからのアップロード完了後に呼び、添付ファイルとして登録する。
+export async function finalizeAttachmentUpload(
   eventId: string,
   announcementVersionId: string,
-  formData: FormData,
+  storageKey: string,
+  filename: string,
+  fileSize: number,
+  contentType: string,
 ): Promise<UploadAttachmentResult> {
   const { supabase, context } = await requireOrganizerEvent(eventId);
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "ファイルを選択してください。" };
-  }
-  if (file.size > 20 * 1024 * 1024) {
-    return { ok: false, error: `ファイルサイズは20MB以下にしてください（このファイル: ${(file.size / 1024 / 1024).toFixed(1)}MB）。` };
+  const expectedPrefix = `${context.organizationId}/${eventId}/`;
+  if (!storageKey.startsWith(expectedPrefix)) {
+    return { ok: false, error: "不正なアップロードです。" };
   }
 
-  const safeFilename = sanitizeStorageFilename(file.name);
-  const storageKey = `${context.organizationId}/${eventId}/${randomUUID()}-${safeFilename}`;
   const serviceClient = createServiceRoleClient();
-  const arrayBuffer = await file.arrayBuffer();
-
-  const { error: uploadError } = await serviceClient.storage
-    .from("files")
-    .upload(storageKey, Buffer.from(arrayBuffer), { contentType: file.type || "application/octet-stream" });
-  if (uploadError) {
-    return { ok: false, error: `アップロードに失敗しました: ${uploadError.message}` };
-  }
-
   const { data: fileAsset, error: fileAssetError } = await serviceClient
     .from("file_assets")
     .insert({
@@ -182,9 +187,9 @@ export async function uploadAttachment(
       uploader_user_id: context.userId,
       kind: "announcement_attachment",
       storage_key: storageKey,
-      filename: file.name,
-      content_type: file.type || "application/octet-stream",
-      size_bytes: file.size,
+      filename,
+      content_type: contentType || "application/octet-stream",
+      size_bytes: fileSize,
     })
     .select("id")
     .single();

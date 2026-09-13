@@ -1,6 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { acknowledgeAnnouncement, deleteAnnouncementSubmission, uploadAnnouncementSubmission } from "../actions";
+import {
+  acknowledgeAnnouncement,
+  createAnnouncementSubmissionUploadUrl,
+  deleteAnnouncementSubmission,
+  finalizeAnnouncementSubmissionUpload,
+} from "../actions";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +41,8 @@ export default async function ExhibitorAnnouncementDetailPage({
     filename: s.filename ?? s.file_asset_id,
   }));
   const acknowledgeWithIds = acknowledgeAnnouncement.bind(null, token, announcementVersionId);
-  const uploadWithIds = uploadAnnouncementSubmission.bind(null, token, announcementVersionId);
+  const createUploadUrlWithIds = createAnnouncementSubmissionUploadUrl.bind(null, token, announcementVersionId);
+  const finalizeUploadWithIds = finalizeAnnouncementSubmissionUpload.bind(null, token, announcementVersionId);
   const deleteWithIds = deleteAnnouncementSubmission.bind(null, token, announcementVersionId);
 
   return (
@@ -90,7 +96,12 @@ export default async function ExhibitorAnnouncementDetailPage({
                   </p>
                 )}
               </div>
-              <SubmissionUploadManager submissions={submissions} uploadAction={uploadWithIds} deleteAction={deleteWithIds} />
+              <SubmissionUploadManager
+                submissions={submissions}
+                createUploadUrlAction={createUploadUrlWithIds}
+                finalizeUploadAction={finalizeUploadWithIds}
+                deleteAction={deleteWithIds}
+              />
             </div>
           )}
 

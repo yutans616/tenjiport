@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getClientIp } from "@/lib/security/clientIp";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
+import { createSignedUpload } from "@/lib/storage/signedUpload";
 
 const SUBMIT_LIMIT_PER_IP = 20; // 1時間あたり
 const SUBMIT_WINDOW_SECONDS_PER_IP = 3600;
@@ -81,38 +82,23 @@ export async function submitExhibitorForm(
   return { ok: true };
 }
 
-export type UploadResult = { ok: true; fileAssetId: string; filename: string } | { ok: false; error: string };
-
-// 出展者が入力中のフォームへファイル（ロゴ等）を添付する。
-// 提出済み（draft以外）のバージョンには追加できない。
-export async function uploadSubmissionFile(submissionVersionId: string, formData: FormData): Promise<UploadResult> {
+// 提出中のバージョンの所有権を確認し、file_assetsの登録に必要な情報を返す共通処理。
+// アップロードURL発行・アップロード完了後の登録の両方で同じ検証を行う必要があるため
+// 共通化する。
+async function verifyDraftSubmissionOwnership(submissionVersionId: string) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, error: "セッションが切れました。もう一度メールから確認してください。" };
-  }
+  if (!user) return { ok: false as const, error: "セッションが切れました。もう一度メールから確認してください。" };
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "ファイルを選択してください。" };
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    return {
-      ok: false,
-      error: `ファイルサイズは10MB以下にしてください（このファイル: ${(file.size / 1024 / 1024).toFixed(1)}MB）。`,
-    };
-  }
-
-  // 所有権確認：このバージョンが自分の下書きであること
   const { data: version } = await supabase
     .from("submission_versions")
     .select("id, status, event_participation_id")
     .eq("id", submissionVersionId)
     .single();
   if (!version || version.status !== "draft") {
-    return { ok: false, error: "この提出は編集できない状態です。" };
+    return { ok: false as const, error: "この提出は編集できない状態です。" };
   }
 
   const { data: participation } = await supabase
@@ -120,41 +106,75 @@ export async function uploadSubmissionFile(submissionVersionId: string, formData
     .select("event_id")
     .eq("id", version.event_participation_id)
     .single();
-  if (!participation) {
-    return { ok: false, error: "参加情報が見つかりません。" };
-  }
+  if (!participation) return { ok: false as const, error: "参加情報が見つかりません。" };
 
   const { data: event } = await supabase
     .from("events")
     .select("organizer_organization_id")
     .eq("id", participation.event_id)
     .single();
-  if (!event) {
-    return { ok: false, error: "イベントが見つかりません。" };
+  if (!event) return { ok: false as const, error: "イベントが見つかりません。" };
+
+  return {
+    ok: true as const,
+    userId: user.id,
+    eventId: participation.event_id,
+    participationId: version.event_participation_id,
+    organizerOrganizationId: event.organizer_organization_id,
+  };
+}
+
+export type CreateUploadUrlResult = { ok: true; storageKey: string; token: string } | { ok: false; error: string };
+
+// 出展者が入力中のフォームへファイル（ロゴ等）を添付する（フェーズ1）。
+// ファイル本体はここでは受け取らず、ブラウザから直接Supabase Storageへ
+// アップロードさせるための署名付きURLだけを発行する（理由はsignedUpload.ts参照）。
+// 提出済み（draft以外）のバージョンには追加できない。
+export async function createSubmissionFileUploadUrl(
+  submissionVersionId: string,
+  filename: string,
+  fileSize: number,
+): Promise<CreateUploadUrlResult> {
+  const owner = await verifyDraftSubmissionOwnership(submissionVersionId);
+  if (!owner.ok) return owner;
+
+  const storageKey = `${owner.organizerOrganizationId}/${owner.eventId}/exhibitor-uploads/${owner.participationId}/${randomUUID()}-${sanitizeStorageFilename(filename)}`;
+  return createSignedUpload(storageKey, fileSize);
+}
+
+export type UploadResult = { ok: true; fileAssetId: string; filename: string } | { ok: false; error: string };
+
+// フェーズ2：ブラウザからSupabase Storageへの直接アップロードが完了した後に呼び、
+// file_assets行を作成する。storageKeyは自分のセッションから導出したプレフィックスと
+// 一致することを確認し、他人（あるいは他イベント）のストレージキーを不正に
+// 自分の提出物として登録できないようにする。
+export async function finalizeSubmissionFileUpload(
+  submissionVersionId: string,
+  storageKey: string,
+  filename: string,
+  fileSize: number,
+  contentType: string,
+): Promise<UploadResult> {
+  const owner = await verifyDraftSubmissionOwnership(submissionVersionId);
+  if (!owner.ok) return owner;
+
+  const expectedPrefix = `${owner.organizerOrganizationId}/${owner.eventId}/exhibitor-uploads/${owner.participationId}/`;
+  if (!storageKey.startsWith(expectedPrefix)) {
+    return { ok: false, error: "不正なアップロードです。" };
   }
 
   const serviceClient = createServiceRoleClient();
-  const storageKey = `${event.organizer_organization_id}/${participation.event_id}/exhibitor-uploads/${version.event_participation_id}/${randomUUID()}-${sanitizeStorageFilename(file.name)}`;
-  const arrayBuffer = await file.arrayBuffer();
-
-  const { error: uploadError } = await serviceClient.storage
-    .from("files")
-    .upload(storageKey, Buffer.from(arrayBuffer), { contentType: file.type || "application/octet-stream" });
-  if (uploadError) {
-    return { ok: false, error: `アップロードに失敗しました: ${uploadError.message}` };
-  }
-
   const { data: fileAsset, error: fileAssetError } = await serviceClient
     .from("file_assets")
     .insert({
-      organizer_organization_id: event.organizer_organization_id,
-      event_id: participation.event_id,
-      uploader_user_id: user.id,
+      organizer_organization_id: owner.organizerOrganizationId,
+      event_id: owner.eventId,
+      uploader_user_id: owner.userId,
       kind: "submission_attachment",
       storage_key: storageKey,
-      filename: file.name,
-      content_type: file.type || "application/octet-stream",
-      size_bytes: file.size,
+      filename,
+      content_type: contentType || "application/octet-stream",
+      size_bytes: fileSize,
     })
     .select("id, filename")
     .single();
@@ -162,5 +182,5 @@ export async function uploadSubmissionFile(submissionVersionId: string, formData
     return { ok: false, error: `ファイルの登録に失敗しました: ${fileAssetError?.message}` };
   }
 
-  return { ok: true, fileAssetId: fileAsset.id, filename: fileAsset.filename ?? file.name };
+  return { ok: true, fileAssetId: fileAsset.id, filename: fileAsset.filename ?? filename };
 }

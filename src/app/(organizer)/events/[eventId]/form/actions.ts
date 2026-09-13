@@ -55,6 +55,46 @@ function buildOptionsJson(
   return null;
 }
 
+// 同じ親（フォーム内のセクション、またはセクション内の項目）に属する行の中で、
+// order列を1つ隣（上/下）の行と入れ替える。form_sections/form_fieldsのorderには
+// ユニーク制約が無いため、2回に分けたUPDATEで安全に入れ替えられる。
+async function swapOrder(
+  supabase: Awaited<ReturnType<typeof requireOrganizerEvent>>["supabase"],
+  table: "form_sections" | "form_fields",
+  scopeColumn: "form_id" | "form_section_id",
+  scopeValue: string,
+  currentId: string,
+  direction: "up" | "down",
+) {
+  const { data: items } = await supabase
+    .from(table)
+    .select("id, order")
+    .eq(scopeColumn, scopeValue)
+    .order("order", { ascending: true });
+  if (!items) return;
+
+  const idx = items.findIndex((i) => i.id === currentId);
+  const neighborIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (idx === -1 || neighborIdx < 0 || neighborIdx >= items.length) return;
+
+  const current = items[idx];
+  const neighbor = items[neighborIdx];
+  await supabase.from(table).update({ order: neighbor.order }).eq("id", current.id);
+  await supabase.from(table).update({ order: current.order }).eq("id", neighbor.id);
+}
+
+export async function moveSection(eventId: string, formId: string, sectionId: string, direction: "up" | "down") {
+  const { supabase } = await requireOrganizerEvent(eventId);
+  await swapOrder(supabase, "form_sections", "form_id", formId, sectionId, direction);
+  revalidatePath(`/events/${eventId}/form`);
+}
+
+export async function moveField(eventId: string, sectionId: string, fieldId: string, direction: "up" | "down") {
+  const { supabase } = await requireOrganizerEvent(eventId);
+  await swapOrder(supabase, "form_fields", "form_section_id", sectionId, fieldId, direction);
+  revalidatePath(`/events/${eventId}/form`);
+}
+
 async function requireOrganizerEvent(eventId: string) {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");

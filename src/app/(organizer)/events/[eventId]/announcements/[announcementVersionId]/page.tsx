@@ -2,13 +2,14 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import {
+  createAttachmentUploadUrl,
   deleteAttachment,
+  finalizeAttachmentUpload,
   processNotificationsNowAction,
   publishAnnouncementAction,
   resendAnnouncementAction,
   updateAnnouncementAudience,
   updateSubmissionDueDate,
-  uploadAttachment,
 } from "../actions";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -132,7 +133,8 @@ export default async function AnnouncementDetailPage({
   );
 
   const failedCount = (deliveries ?? []).filter((d) => d.status === "failed").length;
-  const uploadAttachmentWithIds = uploadAttachment.bind(null, eventId, announcementVersionId);
+  const createUploadUrlWithIds = createAttachmentUploadUrl.bind(null, eventId);
+  const finalizeUploadWithIds = finalizeAttachmentUpload.bind(null, eventId, announcementVersionId);
   const deleteAttachmentWithIds = deleteAttachment.bind(null, eventId, announcementVersionId);
   const attachmentList = (attachments ?? []).map((att) => {
     const file = Array.isArray(att.file_assets) ? att.file_assets[0] : att.file_assets;
@@ -239,7 +241,8 @@ export default async function AnnouncementDetailPage({
           <AttachmentManager
             attachments={attachmentList}
             canEdit={version.status === "draft"}
-            uploadAction={uploadAttachmentWithIds}
+            createUploadUrlAction={createUploadUrlWithIds}
+            finalizeUploadAction={finalizeUploadWithIds}
             deleteAction={deleteAttachmentWithIds}
           />
         </CardContent>

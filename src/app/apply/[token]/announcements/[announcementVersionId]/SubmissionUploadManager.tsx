@@ -2,19 +2,24 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, UploadCloud } from "lucide-react";
+import { Loader2, Trash2, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { uploadFileToSignedUrl } from "@/lib/storage/uploadToSignedUrl";
+import { MAX_UPLOAD_BYTES } from "@/lib/storage/uploadLimits";
 
 type Submission = { id: string; fileId: string; filename: string };
 type ActionResult = { ok: true } | { ok: false; error: string };
+type CreateUploadUrlResult = { ok: true; storageKey: string; token: string } | { ok: false; error: string };
 
 export function SubmissionUploadManager({
   submissions,
-  uploadAction,
+  createUploadUrlAction,
+  finalizeUploadAction,
   deleteAction,
 }: {
   submissions: Submission[];
-  uploadAction: (formData: FormData) => Promise<ActionResult>;
+  createUploadUrlAction: (filename: string, fileSize: number) => Promise<CreateUploadUrlResult>;
+  finalizeUploadAction: (storageKey: string, filename: string, fileSize: number, contentType: string) => Promise<ActionResult>;
   deleteAction: (submissionId: string) => Promise<ActionResult>;
 }) {
   const router = useRouter();
@@ -30,15 +35,23 @@ export function SubmissionUploadManager({
     setError(null);
     try {
       for (const file of files) {
-        const formData = new FormData();
-        formData.set("file", file);
-        const result = await uploadAction(formData);
-        if (!result.ok) {
-          setError(result.error);
+        const urlResult = await createUploadUrlAction(file.name, file.size);
+        if (!urlResult.ok) {
+          setError(urlResult.error);
+          break;
+        }
+        await uploadFileToSignedUrl(urlResult.storageKey, urlResult.token, file);
+        const finalizeResult = await finalizeUploadAction(urlResult.storageKey, file.name, file.size, file.type);
+        if (!finalizeResult.ok) {
+          setError(finalizeResult.error);
           break;
         }
       }
       router.refresh();
+    } catch (err) {
+      // ネットワーク切断等、途中で例外が投げられるケースをここで確実に拾う
+      // （catch漏れがあるとアップロード中のまま固まり、エラーも出ないまま反映されないため）。
+      setError(err instanceof Error ? err.message : "アップロードに失敗しました。もう一度お試しください。");
     } finally {
       setIsUploading(false);
     }
@@ -109,13 +122,14 @@ export function SubmissionUploadManager({
       >
         <UploadCloud className="size-5 text-muted-foreground" />
         <label className="cursor-pointer">
-          <span className="inline-flex items-center rounded-lg border border-input px-3 py-1.5 text-sm hover:bg-muted">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-1.5 text-sm hover:bg-muted">
+            {isUploading && <Loader2 className="size-3.5 animate-spin" />}
             {isUploading ? "アップロード中..." : "ファイルを選択して提出"}
           </span>
           <input ref={inputRef} type="file" multiple className="hidden" onChange={handleFilesSelected} disabled={isUploading} />
         </label>
         <p className="text-xs text-muted-foreground">
-          選択すると自動的に提出されます（複数選択可）。ここへファイルをドラッグ＆ドロップすることもできます。
+          選択すると自動的に提出されます（複数選択可、{MAX_UPLOAD_BYTES / 1024 / 1024}MBまで）。ここへファイルをドラッグ＆ドロップすることもできます。
         </p>
       </div>
 

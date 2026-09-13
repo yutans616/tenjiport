@@ -69,6 +69,7 @@ export default async function NewInvoicePage({
             <div className="grid gap-1.5">
               <Label htmlFor="file">請求書ファイル（PDF等・任意）</Label>
               <Input id="file" type="file" name="file" />
+              <p className="text-xs text-muted-foreground">未添付の場合は自動生成されます。添付する場合は20MBまでです。</p>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="memo">主催者内部メモ（出展者には表示されません）</Label>
