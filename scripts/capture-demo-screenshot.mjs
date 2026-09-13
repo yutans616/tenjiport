@@ -5,11 +5,17 @@ import { chromium } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+// 訪問者ごとの完全分離（tenjiport_demo_lp_spec.md 4.3節P2）後は/demo/appのたびに
+// ランダムなエフェメラル組織が発行されるため、再現性のある素材を撮るには固定トークン
+// （src/lib/demo/constants.tsのQA_STABLE_DEMO_TOKENと同じ値）を使う。
+const QA_STABLE_DEMO_TOKEN = "qa-stable-session";
 
 async function main() {
   await mkdir("public/demo", { recursive: true });
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await context.addCookies([{ name: "demo_token", value: QA_STABLE_DEMO_TOKEN, url: BASE_URL }]);
+  const page = await context.newPage();
 
   await page.goto(`${BASE_URL}/demo/app`, { waitUntil: "networkidle" });
   // /events 一覧からデモイベントの概要（提出状況・未確認資料・未入金件数が並ぶダッシュボード）へ

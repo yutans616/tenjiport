@@ -12,10 +12,16 @@ import path from "node:path";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const OUT_DIR = "public/demo";
 const TMP_VIDEO_DIR = "public/demo/.tmp-video";
+// 訪問者ごとの完全分離（tenjiport_demo_lp_spec.md 4.3節P2）後は/demo/appのたびに
+// ランダムなエフェメラル組織が発行されるため、再現性のある録画にするには固定トークン
+// （src/lib/demo/constants.tsのQA_STABLE_DEMO_TOKENと同じ値）を使う。
+const QA_STABLE_DEMO_TOKEN = "qa-stable-session";
+const QA_COOKIE = { name: "demo_token", value: QA_STABLE_DEMO_TOKEN, url: BASE_URL };
 
 async function warmUp(browser) {
   // Turbopackの初回コンパイル待ちが録画に写り込まないよう、先に一通り触っておく。
   const ctx = await browser.newContext();
+  await ctx.addCookies([QA_COOKIE]);
   const page = await ctx.newPage();
   page.setDefaultTimeout(60_000);
   page.setDefaultNavigationTimeout(90_000);
@@ -31,6 +37,7 @@ async function warmUp(browser) {
   await ctx.close();
 
   const ctx2 = await browser.newContext();
+  await ctx2.addCookies([QA_COOKIE]);
   const page2 = await ctx2.newPage();
   page2.setDefaultTimeout(60_000);
   page2.setDefaultNavigationTimeout(90_000);
@@ -62,6 +69,7 @@ async function main() {
     viewport: { width: 1280, height: 720 },
     recordVideo: { dir: TMP_VIDEO_DIR, size: { width: 1280, height: 720 } },
   });
+  await context.addCookies([QA_COOKIE]);
   const page = await context.newPage();
   page.setDefaultTimeout(60_000);
   page.setDefaultNavigationTimeout(90_000);

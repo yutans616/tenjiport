@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { resetDemoEnvironment } from "@/lib/demo/seed";
+import { cleanupExpiredDemoSessions } from "@/lib/demo/ephemeral";
 
-// デモ環境の深夜強制リセット（tenjiport_demo_lp_spec.md 4.3節の安全網）。
-// 「最初に戻す」ボタン（src/app/demo/actions.ts）を訪問者が押し忘れた場合や、
-// 複数訪問者の操作が混ざった場合に備え、Vercel Cronから毎日1回呼び出す。
-// ガード方式はsrc/app/api/notifications/process/route.tsと同じ（CRON_SECRET未設定時はローカル許可）。
-async function runReset() {
-  const result = await resetDemoEnvironment();
-  return NextResponse.json({ ok: true, ...result });
+// デモ環境の期限切れセッション清掃（tenjiport_demo_lp_spec.md 4.3節P2の安全網）。
+// 訪問者ごとのエフェメラルなデモ組織は新規発行のたびにも少しずつ清掃されるが
+// （src/lib/demo/ephemeral.ts）、アクセスが途絶えた場合の保険としてVercel Cronから
+// 毎日1回呼び出す。ガード方式は/api/notifications/processと同じ
+// （CRON_SECRET未設定時はローカル許可）。
+async function runCleanup() {
+  const cleaned = await cleanupExpiredDemoSessions(50);
+  return NextResponse.json({ ok: true, cleanedSessions: cleaned });
 }
 
 export async function POST(request: NextRequest) {
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
   }
   try {
-    return await runReset();
+    return await runCleanup();
   } catch (err) {
     return NextResponse.json({ error: String(err instanceof Error ? err.message : err) }, { status: 500 });
   }
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     }
   }
   try {
-    return await runReset();
+    return await runCleanup();
   } catch (err) {
     return NextResponse.json({ error: String(err instanceof Error ? err.message : err) }, { status: 500 });
   }

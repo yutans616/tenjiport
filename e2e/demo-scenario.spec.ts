@@ -13,14 +13,32 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPAB
   auth: { persistSession: false },
 });
 
+// 訪問者ごとの完全分離（tenjiport_demo_lp_spec.md 4.3節P2）導入後は、/demo/appへの
+// アクセスのたびにランダムなトークンで新しいエフェメラル組織が発行される。このテストは
+// 毎回同じデータで再現したいため、固定トークン（src/lib/demo/constants.tsの
+// QA_STABLE_DEMO_TOKENと同じ値）をCookieとして先にセットし、同じデモ組織を使い回す。
+const QA_STABLE_DEMO_TOKEN = "qa-stable-session";
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+
+async function useQaStableDemoSession(context: import("@playwright/test").BrowserContext) {
+  await context.addCookies([
+    {
+      name: "demo_token",
+      value: QA_STABLE_DEMO_TOKEN,
+      url: BASE_URL,
+    },
+  ]);
+}
+
 test.beforeAll(() => {
-  // 既知の初期状態（提出済み9社・未提出3社、資料確認済み7社・未確認5社、入金済み8社・未入金4社）に
-  // 揃えてから検証する（scripts/seed-demo.mjs）。
+  // 既知の初期状態（提出済み9社・未提出3社、資料確認済み7社・未確認5社、入金済み6社・未入金4社・
+  // 未発行2社）に揃えてから検証する（scripts/seed-demo.mjs、QA_STABLE_DEMO_TOKEN固定セッション）。
   execSync("node --env-file=.env.local scripts/seed-demo.mjs", { cwd: process.cwd(), stdio: "inherit" });
 });
 
 test("主催者と出展者の操作をひと通り体験でき、デモ組織からは実送信されない", async ({ browser }) => {
   const organizerContext = await browser.newContext();
+  await useQaStableDemoSession(organizerContext);
   const organizerPage = await organizerContext.newPage();
   organizerPage.setDefaultTimeout(60_000);
   organizerPage.setDefaultNavigationTimeout(90_000);
@@ -81,16 +99,21 @@ test("主催者と出展者の操作をひと通り体験でき、デモ組織�
 
   let publicFormToken = "";
   await test.step("出展者側に切り替え、資料を確認する", async () => {
-    const { data: org } = await db.from("organizer_organizations").select("id").eq("is_demo", true).single();
+    const { data: session } = await db
+      .from("demo_sessions")
+      .select("organization_id")
+      .eq("token", QA_STABLE_DEMO_TOKEN)
+      .single();
     const { data: event } = await db
       .from("events")
       .select("public_form_token")
-      .eq("organizer_organization_id", org!.id)
+      .eq("organizer_organization_id", session!.organization_id)
       .eq("status", "open")
       .single();
     publicFormToken = event!.public_form_token as string;
 
     const exhibitorContext = await browser.newContext();
+    await useQaStableDemoSession(exhibitorContext);
     const exhibitorPage = await exhibitorContext.newPage();
     exhibitorPage.setDefaultTimeout(60_000);
     exhibitorPage.setDefaultNavigationTimeout(90_000);

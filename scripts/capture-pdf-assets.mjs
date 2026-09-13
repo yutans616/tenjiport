@@ -5,11 +5,18 @@ import { mkdir } from "node:fs/promises";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const OUT_DIR = "public/demo/pdf-assets";
+// 訪問者ごとの完全分離（tenjiport_demo_lp_spec.md 4.3節P2）後は/demo/appのたびに
+// ランダムなエフェメラル組織が発行される。主催者ページと出展者ページで同じデモ組織を
+// 参照させるため、共有の1コンテキストに固定トークン（src/lib/demo/constants.tsの
+// QA_STABLE_DEMO_TOKENと同じ値）のCookieをセットしてから両方のページを開く。
+const QA_STABLE_DEMO_TOKEN = "qa-stable-session";
 
 async function main() {
   await mkdir(OUT_DIR, { recursive: true });
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 1400 } });
+  await context.addCookies([{ name: "demo_token", value: QA_STABLE_DEMO_TOKEN, url: BASE_URL }]);
+  const page = await context.newPage();
   page.setDefaultTimeout(60_000);
   page.setDefaultNavigationTimeout(90_000);
 
@@ -34,8 +41,9 @@ async function main() {
 
   await page.close();
 
-  // 出展者：資料一覧・資料確認画面
-  const exhibitorPage = await browser.newPage({ viewport: { width: 900, height: 900 } });
+  // 出展者：資料一覧・資料確認画面（同じcontext=同じdemo_tokenを共有し、同一のデモ組織を見る）
+  const exhibitorPage = await context.newPage();
+  await exhibitorPage.setViewportSize({ width: 900, height: 900 });
   exhibitorPage.setDefaultTimeout(60_000);
   exhibitorPage.setDefaultNavigationTimeout(90_000);
   await exhibitorPage.goto(`${BASE_URL}/demo/exhibitor`, { waitUntil: "networkidle" });

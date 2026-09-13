@@ -1,15 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import {
-  DEMO_ORGANIZER_EMAIL,
-  DEMO_BACKGROUND_EXHIBITOR_EMAIL,
-  DEMO_FEATURED_EXHIBITOR_EMAIL,
-} from "@/lib/demo/constants";
 
-// アプリ内「最初に戻す」・深夜リセット用のTS版シードロジック。
-// 初回ブートストラップ（デモ組織・デモ用authユーザーの作成）は scripts/seed-demo.mjs を
-// 先に実行しておく前提だが、このモジュール単体でも同じ内容を冪等に再構築できる。
-// ロジックを変更する場合は scripts/seed-demo.mjs 側も合わせて更新すること。
+// デモイベント配下データ（フォーム・出展者12社・提出・資料・請求書・通知）の
+// 構築ロジック。組織・authユーザーの作成/破棄は呼び出し側（ephemeral.ts）の責務とし、
+// ここでは「どの組織・どのユーザーに対して」を引数で受け取るだけにする
+// （訪問者ごとに独立した組織を発行する、tenjiport_demo_lp_spec.md 4.3節P2のため）。
 
 type ExhibitorDef = {
   name: string;
@@ -44,22 +38,13 @@ function futureDate(daysFromNow: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function findOrCreateUser(db: SupabaseClient, email: string) {
-  let page = 1;
-  for (;;) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw error;
-    const found = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-    if (found) return found;
-    if (data.users.length < 200) break;
-    page += 1;
-  }
-  const { data, error } = await db.auth.admin.createUser({ email, email_confirm: true });
-  if (error) throw error;
-  return data.user;
-}
-
-async function deleteEventTree(db: SupabaseClient, eventId: string) {
+/**
+ * イベント配下のデータ（参加者・提出・資料・請求書・通知・フォーム）を全て削除する。
+ * 組織自体・組織メンバーシップ・出展者プロフィールは削除しない
+ * （共有リセットでは使い回すため）。エフェメラル組織を丸ごと破棄する場合は
+ * ephemeral.tsのdeleteEphemeralDemoSessionを使うこと。
+ */
+export async function deleteEventTree(db: SupabaseClient, eventId: string): Promise<void> {
   const { data: participations } = await db.from("event_participations").select("id").eq("event_id", eventId);
   const participationIds = (participations ?? []).map((p: { id: string }) => p.id);
 
@@ -124,6 +109,13 @@ async function deleteEventTree(db: SupabaseClient, eventId: string) {
   }
 }
 
+export type SeedDemoEventDataParams = {
+  organizationId: string;
+  organizerUserId: string;
+  backgroundExhibitorUserId: string;
+  featuredExhibitorUserId: string;
+};
+
 export type DemoResetResult = {
   organizationId: string;
   eventId: string;
@@ -131,34 +123,12 @@ export type DemoResetResult = {
 };
 
 /**
- * デモ組織のイベント配下データ（フォーム・出展者参加・提出・資料・請求書・通知）を
- * 全て削除し、初期状態（tenjiport_demo_lp_spec.md 4.1節の状態配分）で作り直す。
- * デモ組織・デモ用authユーザー自体は作り直さず再利用する。
- * デモ組織が存在しない場合はエラーになる（初回はscripts/seed-demo.mjsを実行すること）。
+ * 指定した組織に対して、初期状態（tenjiport_demo_lp_spec.md 4.1節の状態配分）の
+ * イベント・出展者12社・資料・請求書を作り直す。既存のイベントがあれば先に削除する。
+ * 組織・請求元情報（銀行口座）・authユーザーは呼び出し側で作成済みであることを前提とする。
  */
-export async function resetDemoEnvironment(): Promise<DemoResetResult> {
-  const db = createServiceRoleClient();
-
-  const { data: org, error: orgError } = await db
-    .from("organizer_organizations")
-    .select("id")
-    .eq("is_demo", true)
-    .single();
-  if (orgError || !org) {
-    throw new Error("デモ組織が見つかりません。先に scripts/seed-demo.mjs を実行してください。");
-  }
-  const orgId = org.id as string;
-
-  const organizerUser = await findOrCreateUser(db, DEMO_ORGANIZER_EMAIL);
-  const backgroundExhibitorUser = await findOrCreateUser(db, DEMO_BACKGROUND_EXHIBITOR_EMAIL);
-  const featuredExhibitorUser = await findOrCreateUser(db, DEMO_FEATURED_EXHIBITOR_EMAIL);
-
-  await db
-    .from("organizer_memberships")
-    .upsert(
-      { organization_id: orgId, user_id: organizerUser.id, role: "owner", status: "active" },
-      { onConflict: "organization_id,user_id" },
-    );
+export async function seedDemoEventData(db: SupabaseClient, params: SeedDemoEventDataParams): Promise<DemoResetResult> {
+  const { organizationId: orgId, organizerUserId, backgroundExhibitorUserId, featuredExhibitorUserId } = params;
 
   // 請求書PDFの発行元情報・振込先を仮データで登録しておく（未設定だと「銀行口座が未登録」の
   // 警告が出続け、デモとして不完全に見えるため）。すべて架空の情報。
@@ -179,6 +149,21 @@ export async function resetDemoEnvironment(): Promise<DemoResetResult> {
   const { data: existingEvents } = await db.from("events").select("id").eq("organizer_organization_id", orgId);
   for (const ev of existingEvents ?? []) {
     await deleteEventTree(db, ev.id as string);
+  }
+
+  // 出展者プロフィールは毎回新規作成するため、前回シード分を先に削除しないと
+  // 「最初に戻す」を複数回押すたびに同名プロフィールが積み上がってしまう
+  // （実際にこの積み上がりが起きて133件のゴミプロフィールが残った経験から追加）。
+  const { data: existingProfiles } = await db
+    .from("exhibitor_profiles")
+    .select("id")
+    .in("created_by_user_id", [backgroundExhibitorUserId, featuredExhibitorUserId]);
+  const existingProfileIds = (existingProfiles ?? []).map((p: { id: string }) => p.id);
+  if (existingProfileIds.length > 0) {
+    await db.from("organizer_exhibitor_codes").delete().eq("organization_id", orgId).in("exhibitor_profile_id", existingProfileIds);
+    await db.from("exhibitor_memberships").delete().in("exhibitor_profile_id", existingProfileIds);
+    const { error: oldProfileDeleteError } = await db.from("exhibitor_profiles").delete().in("id", existingProfileIds);
+    if (oldProfileDeleteError) throw new Error(`前回分の出展者プロフィール削除に失敗しました: ${oldProfileDeleteError.message}`);
   }
 
   const { data: event, error: eventError } = await db
@@ -224,7 +209,7 @@ export async function resetDemoEnvironment(): Promise<DemoResetResult> {
   );
 
   for (const [i, def] of runtimeExhibitors.entries()) {
-    const ownerUser = def.featured ? featuredExhibitorUser : backgroundExhibitorUser;
+    const ownerUserId = def.featured ? featuredExhibitorUserId : backgroundExhibitorUserId;
     const idx = i + 1;
     const contactEmail = `demo-contact-${String(idx).padStart(2, "0")}@example.com`;
 
@@ -236,7 +221,7 @@ export async function resetDemoEnvironment(): Promise<DemoResetResult> {
         default_contact_name: `担当 太郎${idx}`,
         default_contact_email: contactEmail,
         default_contact_phone: "00-0000-0000",
-        created_by_user_id: ownerUser.id,
+        created_by_user_id: ownerUserId,
       })
       .select("id")
       .single();
@@ -245,7 +230,7 @@ export async function resetDemoEnvironment(): Promise<DemoResetResult> {
     await db
       .from("exhibitor_memberships")
       .upsert(
-        { user_id: ownerUser.id, exhibitor_profile_id: profile.id, role: "owner", status: "active" },
+        { user_id: ownerUserId, exhibitor_profile_id: profile.id, role: "owner", status: "active" },
         { onConflict: "user_id,exhibitor_profile_id" },
       );
 
@@ -272,7 +257,7 @@ export async function resetDemoEnvironment(): Promise<DemoResetResult> {
         data_snapshot_json: { booth_size: "M", power_needed: true, notes: "デモ用のサンプル回答です。" },
         submitted_at: new Date().toISOString(),
         confirmed_at: new Date().toISOString(),
-        confirmed_by_user_id: ownerUser.id,
+        confirmed_by_user_id: ownerUserId,
       });
       if (submissionError) throw submissionError;
     }
@@ -285,22 +270,22 @@ export async function resetDemoEnvironment(): Promise<DemoResetResult> {
         due_date: futureDate(20),
         invoice_ack_status: def.paid ? "confirmed" : "unconfirmed",
         invoice_ack_at: def.paid ? new Date().toISOString() : null,
-        invoice_ack_by_user_id: def.paid ? ownerUser.id : null,
+        invoice_ack_by_user_id: def.paid ? ownerUserId : null,
         payment_status: def.paid ? "paid" : "unpaid",
         paid_at: def.paid ? new Date().toISOString() : null,
         organizer_internal_memo: "デモ用サンプル請求書",
-        created_by_user_id: organizerUser.id,
+        created_by_user_id: organizerUserId,
       });
       if (invoiceError) throw invoiceError;
     }
 
     def.participationId = participation.id as string;
-    def.ownerUserId = ownerUser.id;
+    def.ownerUserId = ownerUserId;
   }
 
   const { data: announcement, error: announcementError } = await db
     .from("announcements")
-    .insert({ event_id: eventId, created_by_user_id: organizerUser.id, ack_required: true })
+    .insert({ event_id: eventId, created_by_user_id: organizerUserId, ack_required: true })
     .select("id")
     .single();
   if (announcementError || !announcement) throw announcementError ?? new Error("デモ資料の作成に失敗しました。");
@@ -314,7 +299,7 @@ export async function resetDemoEnvironment(): Promise<DemoResetResult> {
       body: "会場への搬入経路・時間帯についてのご案内です（デモ用サンプル本文）。",
       status: "published",
       published_at: new Date().toISOString(),
-      published_by_user_id: organizerUser.id,
+      published_by_user_id: organizerUserId,
     })
     .select("id")
     .single();

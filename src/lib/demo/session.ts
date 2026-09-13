@@ -23,27 +23,19 @@ export async function buildSilentLoginUrl(email: string, next: string): Promise<
   return `${appUrl}/auth/confirm?token_hash=${data.properties.hashed_token}&type=${verificationType}&next=${encodeURIComponent(next)}`;
 }
 
-/** is_demo=trueの組織に紐づく、現在openなデモイベントを取得する。 */
-export async function getDemoEventEntry(): Promise<{ organizationId: string; eventId: string; publicFormToken: string }> {
+/** 指定した組織に紐づく、現在openなデモイベントを取得する（訪問者ごとに組織が異なる）。 */
+export async function getDemoEventForOrganization(organizationId: string): Promise<{ eventId: string; publicFormToken: string }> {
   const serviceClient = createServiceRoleClient();
-  const { data: org, error: orgError } = await serviceClient
-    .from("organizer_organizations")
-    .select("id")
-    .eq("is_demo", true)
-    .single();
-  if (orgError || !org) {
-    throw new Error("デモ組織が見つかりません。scripts/seed-demo.mjs を実行してください。");
-  }
   const { data: event, error: eventError } = await serviceClient
     .from("events")
     .select("id, public_form_token")
-    .eq("organizer_organization_id", org.id)
+    .eq("organizer_organization_id", organizationId)
     .eq("status", "open")
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
   if (eventError || !event) {
-    throw new Error("デモイベントが見つかりません。scripts/seed-demo.mjs を実行してください。");
+    throw new Error(`デモイベントが見つかりません（organization_id=${organizationId}）。`);
   }
-  return { organizationId: org.id, eventId: event.id, publicFormToken: event.public_form_token };
+  return { eventId: event.id, publicFormToken: event.public_form_token };
 }
