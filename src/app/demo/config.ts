@@ -12,10 +12,10 @@ export const demoConfig = {
   documentViewUrl: "/demo/tenjiport-service-guide.pdf" as string | null,
   documentDownloadUrl: "/demo/tenjiport-service-guide.pdf" as string | null,
 
-  // TimeRex等の契約が未確定のため、予約はメール相談のフォールバックのみ（5.1節P0）。
+  // TimeRex公式埋め込みウィジェット（5.1節P1）。契約者の予約ページURL。
   bookingProvider: "TimeRex" as const,
-  bookingUrl: null as string | null,
-  bookingEmbedEnabled: false,
+  bookingUrl: "https://timerex.net/s/yutans616_d8ea/d14a6b7e" as string | null,
+  bookingEmbedEnabled: true,
 
   contactEmail: "info@blackishgear.com",
 

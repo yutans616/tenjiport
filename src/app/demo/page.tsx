@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { demoConfig } from "./config";
 import { PricingSimulator } from "./PricingSimulator";
+import { TimeRexBooking } from "./TimeRexBooking";
 import { TrackedLink } from "./TrackedLink";
 import { ViewTracker } from "./ViewTracker";
 
@@ -313,8 +314,10 @@ export default function DemoLandingPage() {
                 </p>
               </div>
             </div>
-            <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-              {demoConfig.bookingUrl ? (
+            <div className="flex w-full shrink-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
+              {demoConfig.bookingUrl && demoConfig.bookingEmbedEnabled ? (
+                <TimeRexBooking bookingUrl={demoConfig.bookingUrl} />
+              ) : demoConfig.bookingUrl ? (
                 <TrackedLink href={demoConfig.bookingUrl} event="booking_open_click" external>
                   <Button className="bg-[#0068C8] text-white hover:bg-[#0068C8]/90">空き日時を確認する</Button>
                 </TrackedLink>
