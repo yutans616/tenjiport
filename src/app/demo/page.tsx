@@ -166,6 +166,19 @@ export default function DemoLandingPage() {
             </li>
           ))}
         </ol>
+
+        {demoConfig.videoUrl ? (
+          <div className="mx-auto mt-8 max-w-2xl overflow-hidden rounded-xl border border-[#DCE5EF] bg-white shadow-sm">
+            <video controls preload="none" poster={demoConfig.videoPoster ?? undefined} className="w-full">
+              <source src={demoConfig.videoUrl} type="video/webm" />
+              {demoConfig.videoCaptionsUrl ? (
+                <track kind="captions" srcLang="ja" label="日本語" src={demoConfig.videoCaptionsUrl} default />
+              ) : null}
+              お使いのブラウザは動画の再生に対応していません。上の「登録不要でデモを試す」から直接お試しください。
+            </video>
+          </div>
+        ) : null}
+
         <div className="mt-8 flex justify-center">
           <TrackedLink href={demoConfig.demoAppPath} event="demo_start_click" eventProps={{ cta_location: "experience" }}>
             <Button size="lg" className="bg-[#0068C8] text-white hover:bg-[#0068C8]/90">

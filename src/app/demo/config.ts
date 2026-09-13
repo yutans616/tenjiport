@@ -30,8 +30,11 @@ export const demoConfig = {
   annualParticipantCapPerEvent: 300,
   taxLabel: "税込",
 
-  videoUrl: null as string | null,
-  videoPoster: null as string | null,
+  // Playwrightで実UI・実データを操作して録画（scripts/record-demo-video.mjs）。
+  // ffmpeg未導入のためwebm出力。字幕は同スクリプトが実タイムスタンプから生成したvtt。
+  videoUrl: "/demo/demo-walkthrough.webm",
+  videoCaptionsUrl: "/demo/demo-walkthrough.ja.vtt",
+  videoPoster: "/demo/demo-walkthrough-poster.png",
 
   analyticsEnabled: false,
 } as const;
