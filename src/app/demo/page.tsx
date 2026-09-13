@@ -357,8 +357,14 @@ export default function DemoLandingPage() {
       <footer className="border-t border-[#DCE5EF] py-8">
         <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-3 px-4 text-xs text-[#102C50]/60 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <span>運営：株式会社BlackishGear</span>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
             <span>お問い合わせ：{demoConfig.contactEmail}</span>
+            <a href="/legal/privacy" className="underline-offset-4 hover:underline">
+              プライバシーポリシー
+            </a>
+            <a href="/legal/terms" className="underline-offset-4 hover:underline">
+              利用規約
+            </a>
             <a href="/legal/tokushoho" className="underline-offset-4 hover:underline">
               特定商取引法に基づく表記
             </a>
