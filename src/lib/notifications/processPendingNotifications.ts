@@ -59,6 +59,18 @@ export async function processPendingNotifications(limit = 20): Promise<ProcessRe
       const link = await createExhibitorAccessLink(item.recipient_email, nextPath);
       const subject = TEMPLATE_SUBJECT[item.template_type] ?? "お知らせ";
 
+      // デモ組織（tenjiport_demo_lp_spec.md 4.3節）向けの通知は実送信しない。
+      // 操作デモは「通知プレビューを表示し、実送信しない」仕様のため、Resendを
+      // 呼ばずに送信済み扱いにする（デモ画面側の状態遷移は通常どおり進める）。
+      if (item.is_demo) {
+        await serviceClient.rpc("mark_notification_sent", {
+          p_delivery_id: item.delivery_id,
+          p_provider_message_id: "demo-preview-not-sent",
+        });
+        results.push({ deliveryId: item.delivery_id, ok: true, detail: "demo: skipped real send" });
+        continue;
+      }
+
       const { data: sendResult, error: sendError } = await resend.emails.send({
         from: fromEmail,
         to: item.recipient_email,

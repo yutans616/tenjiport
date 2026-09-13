@@ -4,12 +4,18 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { createStripeClient } from "@/lib/stripe";
+import { isDemoOrganization } from "@/lib/demo/guard";
 
 // カード登録用のStripe Checkoutセッション（mode: setup）を作成し、Stripeのホスト画面へ遷移する。
 // Webhookに依存せず、完了後のリダイレクト先（/plan/stripe/success）でセッションを直接検証する。
 export async function startCardRegistration() {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
+  // UI上はbilling_exemptにより到達しない想定だが、実Stripe課金を発生させない
+  // 二重防御として明示的にブロックする（tenjiport_demo_lp_spec.md 4.3節）。
+  if (await isDemoOrganization(context.organizationId)) {
+    throw new Error("デモ環境ではカード登録はできません。");
+  }
 
   const supabase = await createClient();
   const { data: org } = await supabase

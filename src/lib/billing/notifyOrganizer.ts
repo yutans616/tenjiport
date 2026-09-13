@@ -12,10 +12,13 @@ async function sendBillingEmail(organizationId: string, subject: string, html: s
     const serviceClient = createServiceRoleClient();
     const { data: org } = await serviceClient
       .from("organizer_organizations")
-      .select("billing_email, name")
+      .select("billing_email, name, is_demo")
       .eq("id", organizationId)
       .single();
     if (!org?.billing_email) return;
+    // デモ組織はbilling_exemptにより実際にはこのパス自体が呼ばれないはずだが、
+    // 念のための二重防御（tenjiport_demo_lp_spec.md 4.3節）。
+    if (org.is_demo) return;
 
     const resend = createResendClient();
     const { error } = await resend.emails.send({

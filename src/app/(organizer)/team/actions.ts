@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext, type OrganizerContext } from "@/lib/organizer/context";
 import { createResendClient } from "@/lib/resend";
+import { isDemoOrganization } from "@/lib/demo/guard";
 
 export type TeamActionResult = { ok: true } | { ok: false; error: string };
 
@@ -26,6 +27,10 @@ export async function inviteMemberAction(formData: FormData): Promise<TeamAction
   const role = String(formData.get("role") ?? "staff");
   if (!email) return { ok: false, error: "メールアドレスを入力してください。" };
   if (role !== "admin" && role !== "staff") return { ok: false, error: "不正なロールです。" };
+  // デモ環境では実メールアドレスへの招待メール送信を発生させない（tenjiport_demo_lp_spec.md 4.3節）。
+  if (await isDemoOrganization(context.organizationId)) {
+    return { ok: false, error: "デモ環境ではメンバー招待はできません。" };
+  }
 
   const supabase = await createClient();
   const serviceClient = createServiceRoleClient();

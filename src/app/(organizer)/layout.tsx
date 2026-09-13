@@ -6,6 +6,8 @@ import { isPlatformAdminEmail } from "@/lib/admin/context";
 import { AppSidebar } from "@/components/organizer/app-sidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { SubmitButton } from "@/components/organizer/submit-button";
+import { resetDemoAction } from "@/app/demo/actions";
 
 export default async function OrganizerLayout({ children }: { children: React.ReactNode }) {
   const context = await getOrganizerContext();
@@ -19,7 +21,7 @@ export default async function OrganizerLayout({ children }: { children: React.Re
   const supabase = await createClient();
   const { data: org } = await supabase
     .from("organizer_organizations")
-    .select("billing_exempt")
+    .select("billing_exempt, is_demo")
     .eq("id", context.organizationId)
     .single();
   const { data: contract } = await supabase
@@ -55,6 +57,23 @@ export default async function OrganizerLayout({ children }: { children: React.Re
           <Separator orientation="vertical" className="h-4" />
           <span className="text-sm font-medium text-muted-foreground">{context.organizationName}</span>
         </header>
+        {org?.is_demo ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            <span>
+              デモ環境／サンプルデータです。実際のメール送信や課金は行われません。
+            </span>
+            <div className="flex items-center gap-3">
+              <a href="/demo" className="underline underline-offset-4 hover:no-underline">
+                資料・導入相談
+              </a>
+              <form action={resetDemoAction}>
+                <SubmitButton pendingText="リセット中…" variant="outline" size="sm">
+                  最初に戻す
+                </SubmitButton>
+              </form>
+            </div>
+          </div>
+        ) : null}
         <div className="flex flex-1 flex-col bg-muted/20 p-6">{children}</div>
       </SidebarInset>
     </SidebarProvider>
