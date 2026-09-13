@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/billing/run", "schedule": "0 0 * * *" },
-    { "path": "/api/notifications/process", "schedule": "10 0 * * *" }
+    { "path": "/api/notifications/process", "schedule": "10 0 * * *" },
+    { "path": "/api/demo/reset", "schedule": "0 17 * * *" }
   ]
 }
