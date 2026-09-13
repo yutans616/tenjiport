@@ -236,6 +236,15 @@ UTMはutm_source、utm_medium、utm_campaign、utm_contentの許可項目のみ�
 
 ## 8. 計測仕様
 
+実装済み：demo_lp_view・demo_start_click・document_view_click・document_download_click・
+booking_open_click・signup_clickの6種類（`src/app/demo/track.ts`）は、GA4への送信に加えて
+自社DB（`demo_analytics_events`、`/api/demo/track`）にも記録し、運営者管理画面
+（`/admin`、`yutans616@gmail.com`のみアクセス可）にLP表示回数・デモ開始率・資料閲覧/DL数・
+導入相談クリック数（いずれも直近30日）を表示する。event_typeは許可リスト固定、propsは
+cta_location/mode/campaign/variant/device_categoryのみ許可し、会社名・メールアドレス等の
+自由入力は保存しない。demo_started・demo_step_completed・demo_completed・booking_confirmed・
+signup_completed・paid_conversionは未実装（実アプリ画面側への計測組み込みが必要なため）。
+
 | イベント | 発火条件 |
 |---|---|
 | demo_lp_view | LPの表示 |

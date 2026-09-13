@@ -59,6 +59,21 @@ export default async function AdminOverviewPage() {
     .eq("status", "uncollectible");
   const uncollectibleOutstanding = (uncollectibleInvoices ?? []).reduce((sum, r) => sum + netAmount(r), 0);
 
+  // 営業LP（/demo）の計測。GA4と並行して自社DB（demo_analytics_events）にも
+  // 記録しているため、GA4未設定でもここで即座に集計できる（tenjiport_demo_lp_spec.md 8章）。
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const { data: recentDemoEvents } = await admin
+    .from("demo_analytics_events")
+    .select("event_type")
+    .gte("created_at", thirtyDaysAgo.toISOString());
+  const countByType = (type: string) => (recentDemoEvents ?? []).filter((e) => e.event_type === type).length;
+  const demoLpViews = countByType("demo_lp_view");
+  const demoStartClicks = countByType("demo_start_click");
+  const demoStartRate = demoLpViews > 0 ? (demoStartClicks / demoLpViews) * 100 : 0;
+  const documentViewClicks = countByType("document_view_click") + countByType("document_download_click");
+  const bookingOpenClicks = countByType("booking_open_click");
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
       <div>
@@ -121,6 +136,50 @@ export default async function AdminOverviewPage() {
             <CardTitle className="text-xs font-normal text-muted-foreground">自動リトライ停止中の未回収額</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{yen(uncollectibleOutstanding)}</CardContent>
+        </Card>
+      </div>
+
+      <div>
+        <h2 className="text-base font-semibold tracking-tight">営業LP（/demo）の計測（直近30日）</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          GA4と並行して自社DBにも記録した実績です。予約クリック等は「操作した」事実のみで、予約確定や利用開始そのものを意味しません。
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-normal text-muted-foreground">LP表示回数</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{demoLpViews}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-normal text-muted-foreground">デモ開始クリック数</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{demoStartClicks}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-normal text-muted-foreground">デモ開始率</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">
+            {demoStartRate.toFixed(0)}%
+            <span className="ml-1 text-xs font-normal text-muted-foreground">
+              ({demoStartClicks}/{demoLpViews})
+            </span>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-normal text-muted-foreground">資料閲覧・DLクリック数</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{documentViewClicks}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-normal text-muted-foreground">導入相談クリック数</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{bookingOpenClicks}</CardContent>
         </Card>
       </div>
     </div>
