@@ -17,11 +17,15 @@ type ExhibitorDef = {
   ackBaseline: boolean;
   paid: boolean;
   featured?: boolean;
+  /** 請求書をあえて発行しない（確定金額のみ設定し、請求書一括発行の対象として残す）。 */
+  noInvoiceYet?: boolean;
 };
 
+// サンプル物産・テンジ工房の2社はあえて請求書を発行しない（resolved_price_yenのみ設定）。
+// 「請求書一括発行」機能を試すには未発行の対象が必要なため（全社発行済みだと試せない）。
 const EXHIBITOR_DEFS: ExhibitorDef[] = [
-  { name: "サンプル物産株式会社", submitted: true, ackBaseline: true, paid: true },
-  { name: "テンジ工房合同会社", submitted: true, ackBaseline: true, paid: true },
+  { name: "サンプル物産株式会社", submitted: true, ackBaseline: true, paid: false, noInvoiceYet: true },
+  { name: "テンジ工房合同会社", submitted: true, ackBaseline: true, paid: false, noInvoiceYet: true },
   { name: "有限会社みらいクラフト", submitted: true, ackBaseline: true, paid: true },
   { name: "株式会社ノーザンベイク", submitted: true, ackBaseline: true, paid: true },
   { name: "さくらフーズ株式会社", submitted: true, ackBaseline: true, paid: true },
@@ -220,6 +224,7 @@ export async function resetDemoEnvironment(): Promise<DemoResetResult> {
         status: def.submitted ? "confirmed" : "invited",
         first_submitted_at: def.submitted ? new Date().toISOString() : null,
         is_billable: true,
+        resolved_price_yen: def.noInvoiceYet ? 30000 : null,
       })
       .select("id")
       .single();
@@ -239,20 +244,22 @@ export async function resetDemoEnvironment(): Promise<DemoResetResult> {
       if (submissionError) throw submissionError;
     }
 
-    const { error: invoiceError } = await db.from("exhibitor_invoices").insert({
-      event_participation_id: participation.id,
-      organizer_organization_id: orgId,
-      amount_yen: 30000,
-      due_date: futureDate(20),
-      invoice_ack_status: def.paid ? "confirmed" : "unconfirmed",
-      invoice_ack_at: def.paid ? new Date().toISOString() : null,
-      invoice_ack_by_user_id: def.paid ? ownerUser.id : null,
-      payment_status: def.paid ? "paid" : "unpaid",
-      paid_at: def.paid ? new Date().toISOString() : null,
-      organizer_internal_memo: "デモ用サンプル請求書",
-      created_by_user_id: organizerUser.id,
-    });
-    if (invoiceError) throw invoiceError;
+    if (!def.noInvoiceYet) {
+      const { error: invoiceError } = await db.from("exhibitor_invoices").insert({
+        event_participation_id: participation.id,
+        organizer_organization_id: orgId,
+        amount_yen: 30000,
+        due_date: futureDate(20),
+        invoice_ack_status: def.paid ? "confirmed" : "unconfirmed",
+        invoice_ack_at: def.paid ? new Date().toISOString() : null,
+        invoice_ack_by_user_id: def.paid ? ownerUser.id : null,
+        payment_status: def.paid ? "paid" : "unpaid",
+        paid_at: def.paid ? new Date().toISOString() : null,
+        organizer_internal_memo: "デモ用サンプル請求書",
+        created_by_user_id: organizerUser.id,
+      });
+      if (invoiceError) throw invoiceError;
+    }
 
     def.participationId = participation.id as string;
     def.ownerUserId = ownerUser.id;
