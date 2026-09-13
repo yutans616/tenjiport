@@ -20,7 +20,7 @@ export function TimeRexBooking({ bookingUrl }: { bookingUrl: string }) {
   const [failed, setFailed] = useState(false);
 
   return (
-    <div className="flex w-full flex-col items-start gap-2 sm:items-end">
+    <div className="flex w-full flex-col items-start gap-2">
       {!loading ? (
         <Button
           className="bg-[#0068C8] text-white hover:bg-[#0068C8]/90"
@@ -32,14 +32,18 @@ export function TimeRexBooking({ bookingUrl }: { bookingUrl: string }) {
           空き日時を確認する
         </Button>
       ) : (
-        <div className="w-full max-w-md">
+        <div className="w-full">
           {!loaded && !failed && <p className="mb-2 text-sm text-[#102C50]/60">読み込んでいます…</p>}
           {failed && (
             <p className="mb-2 text-sm text-destructive">
               予約カレンダーの読み込みに失敗しました。下記リンクから別タブでお試しください。
             </p>
           )}
-          <div id="timerex_calendar" data-url={bookingUrl} />
+          {/* カレンダーの週表示が横幅を必要とするため、カードの横幅いっぱいまで使う。
+              それでも収まらない画面幅ではこの要素だけを横スクロールさせ、ページ全体は横スクロールさせない。 */}
+          <div className="w-full overflow-x-auto">
+            <div id="timerex_calendar" data-url={bookingUrl} className="min-w-[720px]" />
+          </div>
           <Script
             src="https://asset.timerex.net/js/embed.js"
             strategy="afterInteractive"

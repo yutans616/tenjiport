@@ -304,7 +304,7 @@ export default function DemoLandingPage() {
       {/* 導入相談 */}
       <section id="consult" className="mx-auto w-full max-w-[1200px] px-4 py-12 sm:px-6">
         <Card className="border-[#DCE5EF] bg-white">
-          <CardContent className="flex flex-col items-start gap-4 py-8 sm:flex-row sm:items-center sm:justify-between">
+          <CardContent className="flex flex-col gap-5 py-8">
             <div className="flex items-start gap-3">
               <MessagesSquare className="mt-0.5 h-6 w-6 shrink-0 text-[#0068C8]" />
               <div>
@@ -314,7 +314,7 @@ export default function DemoLandingPage() {
                 </p>
               </div>
             </div>
-            <div className="flex w-full shrink-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
+            <div className="flex w-full flex-col items-start gap-2">
               {demoConfig.bookingUrl && demoConfig.bookingEmbedEnabled ? (
                 <TimeRexBooking bookingUrl={demoConfig.bookingUrl} />
               ) : demoConfig.bookingUrl ? (
