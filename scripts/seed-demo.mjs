@@ -67,6 +67,22 @@ async function main() {
       { onConflict: "organization_id,user_id" },
     );
 
+  // 請求書PDFの発行元情報・振込先を仮データで登録しておく（未設定だと「銀行口座が未登録」の
+  // 警告が出続け、デモとして不完全に見えるため）。すべて架空の情報。
+  await db.from("organizer_bank_accounts").upsert({
+    organization_id: orgId,
+    company_name: "株式会社テンジポート",
+    postal_code: "100-0001",
+    address: "東京都千代田区サンプル1-2-3（架空）",
+    phone_number: "00-0000-0000",
+    qualified_invoice_registration_number: "T1234567890123",
+    bank_name: "サンプル銀行",
+    branch_name: "サンプル支店",
+    account_type: "普通",
+    account_number: "1234567",
+    account_holder_name: "カ）テンジポート",
+  });
+
   console.log("[3/8] 既存のデモイベントを削除（リセット）...");
   const { data: existingEvents } = await db.from("events").select("id").eq("organizer_organization_id", orgId);
   for (const ev of existingEvents ?? []) {
@@ -324,7 +340,24 @@ async function deleteEventTree(eventId) {
     await db.from("forms").delete().in("id", formIds);
   }
 
-  await db.from("events").delete().eq("id", eventId);
+  // file_assets（添付ファイル等）はevent_idを持つが上記のどの削除にも連動しないため、
+  // 個別に削除しないとeventsのFK制約でevent自体の削除が失敗し、リセットのたびに
+  // 使われなくなった過去のデモイベントが積み上がってしまう（実際に発生した不具合）。
+  const { data: fileAssets } = await db.from("file_assets").select("id, storage_key").eq("event_id", eventId);
+  if (fileAssets && fileAssets.length > 0) {
+    const storageKeys = fileAssets.map((f) => f.storage_key).filter(Boolean);
+    if (storageKeys.length > 0) {
+      const { error: storageError } = await db.storage.from("files").remove(storageKeys);
+      if (storageError) console.warn(`  storage削除に失敗（続行）: ${storageError.message}`);
+    }
+    const { error: fileAssetsError } = await db.from("file_assets").delete().eq("event_id", eventId);
+    if (fileAssetsError) console.warn(`  file_assets削除に失敗（続行）: ${fileAssetsError.message}`);
+  }
+
+  const { error: eventDeleteError } = await db.from("events").delete().eq("id", eventId);
+  if (eventDeleteError) {
+    throw new Error(`イベント削除に失敗しました（event_id=${eventId}）: ${eventDeleteError.message}`);
+  }
 }
 
 function futureDate(daysFromNow) {
