@@ -36,5 +36,10 @@ export const demoConfig = {
   videoCaptionsUrl: "/demo/demo-walkthrough.ja.vtt",
   videoPoster: "/demo/demo-walkthrough-poster.png",
 
-  analyticsEnabled: false,
-} as const;
+  // GA4のMeasurement ID（G-から始まる値）。未設定の間はgtag.jsを読み込まず、
+  // track()は静かに何もしない。値はNEXT_PUBLIC_*のため秘匿情報ではない。
+  gaMeasurementId: (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || null) as string | null,
+  get analyticsEnabled(): boolean {
+    return Boolean(this.gaMeasurementId);
+  },
+};
