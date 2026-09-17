@@ -18,20 +18,26 @@ export type ActiveMembership = {
   role: "owner" | "admin" | "staff";
 };
 
+// auth.getUser()はSupabase Authサーバーへの実ネットワーク往復を伴うため、同一リクエスト内で
+// getMyActiveMemberships・getOrganizerContextの両方から呼ばれても1回で済むようcache()で共有する。
+const getCurrentUser = cache(async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+});
+
 /**
  * ログイン中のユーザーが所属する、有効な（status='active'）組織所属の一覧を
  * created_at昇順（＝参加が古い順）で返す。getOrganizerContext・組織切替UI・
  * 切替アクションの検証で共有する単一のソース。
  */
 export const getMyActiveMemberships = cache(async (): Promise<ActiveMembership[]> => {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getCurrentUser();
   if (!user) return [];
 
+  const supabase = await createClient();
   const { data: memberships } = await supabase
     .from("organizer_memberships")
     .select("role, organizer_organizations(id, name)")
@@ -62,12 +68,7 @@ export const getMyActiveMemberships = cache(async (): Promise<ActiveMembership[]
  * 最も古い所属にフォールバックする。
  */
 export const getOrganizerContext = cache(async (): Promise<OrganizerContext | null> => {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const memberships = await getMyActiveMemberships();

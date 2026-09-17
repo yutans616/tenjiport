@@ -18,18 +18,17 @@ export default async function OrganizerLayout({ children }: { children: React.Re
 
   // 通常プランはカード登録が必須。未登録の間は/plan以外へのアクセスをブロックする
   // （年間プラン・契約なしの組織には影響しない）。運営者アカウント（billing_exempt）は対象外。
+  // org・contractは互いに独立した問い合わせのため並列実行する（直列だと1往復分無駄になる）。
   const supabase = await createClient();
-  const { data: org } = await supabase
-    .from("organizer_organizations")
-    .select("billing_exempt, is_demo")
-    .eq("id", context.organizationId)
-    .single();
-  const { data: contract } = await supabase
-    .from("service_contracts")
-    .select("plan_type, payment_method_status")
-    .eq("organizer_organization_id", context.organizationId)
-    .eq("status", "active")
-    .maybeSingle();
+  const [{ data: org }, { data: contract }] = await Promise.all([
+    supabase.from("organizer_organizations").select("billing_exempt, is_demo").eq("id", context.organizationId).single(),
+    supabase
+      .from("service_contracts")
+      .select("plan_type, payment_method_status")
+      .eq("organizer_organization_id", context.organizationId)
+      .eq("status", "active")
+      .maybeSingle(),
+  ]);
 
   const needsCardRegistration =
     !org?.billing_exempt && contract?.plan_type === "standard" && contract.payment_method_status !== "valid";
