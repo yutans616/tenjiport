@@ -7,6 +7,7 @@ const MESSAGES: Record<string, string> = {
   invited: "招待メールを送信しました。",
   processed: "送信処理を実行しました。",
   invoice_resent: "請求書を再送しました。",
+  contact_sent: "お問い合わせを送信しました。",
 };
 
 function resolveMessage(done: string, count?: string): string {

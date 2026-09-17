@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { CalendarDays, CreditCard, HelpCircle, History, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
+import { CalendarDays, CreditCard, HelpCircle, History, LogOut, Mail, Settings, ShieldCheck, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -102,6 +102,16 @@ export function AppSidebar({
                     <Link href="/help">
                       <HelpCircle />
                       <span>使い方・ヘルプ</span>
+                    </Link>
+                  }
+                />
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={
+                    <Link href="/contact">
+                      <Mail />
+                      <span>お問い合わせ</span>
                     </Link>
                   }
                 />
