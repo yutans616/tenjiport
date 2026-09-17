@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { submitExhibitorForm, createSubmissionFileUploadUrl, finalizeSubmissionFileUpload } from "./actions";
+import { submitExhibitorForm, createSubmissionFileUploadUrl, finalizeSubmissionFileUpload, deleteSubmissionFile } from "./actions";
 import { uploadFileToSignedUrl } from "@/lib/storage/uploadToSignedUrl";
 import { MAX_UPLOAD_BYTES } from "@/lib/storage/uploadLimits";
 import { Button } from "@/components/ui/button";
@@ -461,6 +461,14 @@ function FileFieldInput({
       if (!finalizeResult.ok) {
         setError(finalizeResult.error);
         return;
+      }
+
+      // 差し替え（既存ファイルがある状態での再アップロード）の場合、古いファイルを
+      // 削除しないとStorage実体・イベントのファイル容量上限が古い分ずっと残り続ける。
+      // 新しいファイルの登録が確実に成功した後に削除する（先に消すと新規アップロード
+      // 失敗時にファイルが無い状態になってしまうため）。
+      if (value?.fileAssetId) {
+        await deleteSubmissionFile(submissionVersionId, value.fileAssetId);
       }
 
       onChange(fieldKey, { fileAssetId: finalizeResult.fileAssetId, filename: finalizeResult.filename });

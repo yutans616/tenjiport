@@ -8,6 +8,7 @@ import { getClientIp } from "@/lib/security/clientIp";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 import { createSignedUpload } from "@/lib/storage/signedUpload";
 import { checkEventStorageQuota } from "@/lib/storage/eventStorageQuota";
+import { deleteFileAsset } from "@/lib/storage/deleteFileAsset";
 
 const SUBMIT_LIMIT_PER_IP = 20; // 1時間あたり
 const SUBMIT_WINDOW_SECONDS_PER_IP = 3600;
@@ -187,4 +188,26 @@ export async function finalizeSubmissionFileUpload(
   }
 
   return { ok: true, fileAssetId: fileAsset.id, filename: fileAsset.filename ?? filename };
+}
+
+// ファイルフィールドで「差し替える」を行った際、古いfile_assetを削除する（呼ばないと
+// Storage実体・イベントのファイル容量上限が古いファイル分ずっと残り続けてしまう）。
+export async function deleteSubmissionFile(submissionVersionId: string, fileAssetId: string): Promise<UploadResult> {
+  const owner = await verifyDraftSubmissionOwnership(submissionVersionId);
+  if (!owner.ok) return owner;
+
+  const serviceClient = createServiceRoleClient();
+  const { data: fileAsset } = await serviceClient
+    .from("file_assets")
+    .select("event_id, storage_key")
+    .eq("id", fileAssetId)
+    .single();
+  const expectedPrefix = `${owner.organizerOrganizationId}/${owner.eventId}/exhibitor-uploads/${owner.participationId}/`;
+  if (!fileAsset || fileAsset.event_id !== owner.eventId || !fileAsset.storage_key?.startsWith(expectedPrefix)) {
+    return { ok: false, error: "不正な削除リクエストです。" };
+  }
+
+  const result = await deleteFileAsset(fileAssetId);
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, fileAssetId, filename: "" };
 }

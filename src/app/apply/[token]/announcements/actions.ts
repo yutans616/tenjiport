@@ -7,6 +7,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 import { createSignedUpload } from "@/lib/storage/signedUpload";
 import { checkEventStorageQuota } from "@/lib/storage/eventStorageQuota";
+import { deleteFileAsset } from "@/lib/storage/deleteFileAsset";
 
 export async function acknowledgeAnnouncement(token: string, announcementVersionId: string) {
   const supabase = await createClient();
@@ -153,10 +154,29 @@ export async function deleteAnnouncementSubmission(
   announcementVersionId: string,
   submissionId: string,
 ): Promise<SubmissionUploadResult> {
+  const submitter = await verifyAnnouncementSubmitter(token, announcementVersionId);
+  if (!submitter.ok) return submitter;
+
   const supabase = await createClient();
+  const { data: submission } = await supabase
+    .from("announcement_submissions")
+    .select("file_asset_id")
+    .eq("id", submissionId)
+    .eq("announcement_version_id", announcementVersionId)
+    .eq("event_participation_id", submitter.participationId)
+    .single();
+  if (!submission) return { ok: false, error: "提出物が見つかりません。" };
+
   const { error } = await supabase.from("announcement_submissions").delete().eq("id", submissionId);
   if (error) {
     return { ok: false, error: `削除に失敗しました: ${error.message}` };
+  }
+
+  // 紐付けだけでなくfile_assets・Storage実体も削除しないと、イベントのファイル容量上限
+  // （checkEventStorageQuota）が一切戻らない。
+  const deleteResult = await deleteFileAsset(submission.file_asset_id);
+  if (!deleteResult.ok) {
+    console.error(`deleteAnnouncementSubmission: failed to delete file_asset ${submission.file_asset_id}:`, deleteResult.error);
   }
 
   revalidatePath(`/apply/${token}/announcements/${announcementVersionId}`);

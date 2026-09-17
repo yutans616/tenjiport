@@ -10,6 +10,7 @@ import { processPendingNotifications } from "@/lib/notifications/processPendingN
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 import { createSignedUpload } from "@/lib/storage/signedUpload";
 import { checkEventStorageQuota } from "@/lib/storage/eventStorageQuota";
+import { deleteFileAsset } from "@/lib/storage/deleteFileAsset";
 
 async function requireOrganizerEvent(eventId: string) {
   const context = await getOrganizerContext();
@@ -229,12 +230,27 @@ export async function deleteAttachment(
     return { ok: false, error: "公開後は添付ファイルを削除できません。" };
   }
 
+  const { data: attachment } = await supabase
+    .from("announcement_attachments")
+    .select("file_asset_id")
+    .eq("id", attachmentId)
+    .eq("announcement_version_id", announcementVersionId)
+    .single();
+  if (!attachment) return { ok: false, error: "添付ファイルが見つかりません。" };
+
   const { error } = await supabase
     .from("announcement_attachments")
     .delete()
     .eq("id", attachmentId)
     .eq("announcement_version_id", announcementVersionId);
   if (error) return { ok: false, error: `添付の削除に失敗しました: ${error.message}` };
+
+  // 添付の紐付けだけでなくfile_assets・Storage実体も削除しないと、イベントの
+  // ファイル容量上限（checkEventStorageQuota）が一切戻らず、削除した意味がなくなる。
+  const deleteResult = await deleteFileAsset(attachment.file_asset_id);
+  if (!deleteResult.ok) {
+    console.error(`deleteAttachment: failed to delete file_asset ${attachment.file_asset_id}:`, deleteResult.error);
+  }
 
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
   return { ok: true };
