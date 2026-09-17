@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 import { createSignedUpload } from "@/lib/storage/signedUpload";
+import { checkEventStorageQuota } from "@/lib/storage/eventStorageQuota";
 
 export async function acknowledgeAnnouncement(token: string, announcementVersionId: string) {
   const supabase = await createClient();
@@ -87,6 +88,9 @@ export async function createAnnouncementSubmissionUploadUrl(
 ): Promise<CreateUploadUrlResult> {
   const submitter = await verifyAnnouncementSubmitter(token, announcementVersionId);
   if (!submitter.ok) return submitter;
+
+  const quota = await checkEventStorageQuota(submitter.eventId, fileSize);
+  if (!quota.ok) return quota;
 
   const storageKey = `${submitter.organizerOrganizationId}/${submitter.eventId}/announcement-submissions/${submitter.participationId}/${randomUUID()}-${sanitizeStorageFilename(filename)}`;
   return createSignedUpload(storageKey, fileSize);

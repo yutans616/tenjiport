@@ -27,6 +27,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .from("file_assets")
     .select("storage_key, filename")
     .eq("id", fileAssetId)
+    .is("deleted_at", null)
     .single();
   if (!fileAsset) {
     return NextResponse.json({ error: "not found" }, { status: 404 });

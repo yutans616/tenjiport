@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // exhibition-list-tool/ is a fully separate Python CLI (its own repo-within-a-repo,
+    // not committed) — its vendored .venv/ dependencies aren't this project's JS/TS.
+    "exhibition-list-tool/**",
   ]),
 ]);
 

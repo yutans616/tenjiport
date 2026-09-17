@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { createEvent } from "../actions";
+import { maxEndDateString } from "../eventDateLimits";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,7 +63,7 @@ export default async function NewEventPage() {
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="end_date">終了日</Label>
-                <Input id="end_date" type="date" name="end_date" required />
+                <Input id="end_date" type="date" name="end_date" max={maxEndDateString()} required />
               </div>
             </div>
             <SubmitButton className="self-start" pendingText="作成中...">

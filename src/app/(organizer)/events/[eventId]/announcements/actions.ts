@@ -9,6 +9,7 @@ import { getOrganizerContext } from "@/lib/organizer/context";
 import { processPendingNotifications } from "@/lib/notifications/processPendingNotifications";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 import { createSignedUpload } from "@/lib/storage/signedUpload";
+import { checkEventStorageQuota } from "@/lib/storage/eventStorageQuota";
 
 async function requireOrganizerEvent(eventId: string) {
   const context = await getOrganizerContext();
@@ -157,6 +158,10 @@ export async function createAttachmentUploadUrl(
   fileSize: number,
 ): Promise<CreateAttachmentUploadUrlResult> {
   const { context } = await requireOrganizerEvent(eventId);
+
+  const quota = await checkEventStorageQuota(eventId, fileSize);
+  if (!quota.ok) return quota;
+
   const safeFilename = sanitizeStorageFilename(filename);
   const storageKey = `${context.organizationId}/${eventId}/${randomUUID()}-${safeFilename}`;
   return createSignedUpload(storageKey, fileSize);

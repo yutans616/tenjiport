@@ -151,6 +151,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from("file_assets")
       .select("storage_key, filename, organizer_organization_id")
       .eq("id", job.fileAssetId)
+      .is("deleted_at", null)
       .single();
     if (!fileAsset || fileAsset.organizer_organization_id !== context.organizationId) return null;
 

@@ -126,6 +126,7 @@ export async function GET(
       .from("file_assets")
       .select("storage_key, filename, organizer_organization_id")
       .eq("id", fileAssetId)
+      .is("deleted_at", null)
       .single();
     if (!fileAsset || fileAsset.organizer_organization_id !== context.organizationId) continue;
 

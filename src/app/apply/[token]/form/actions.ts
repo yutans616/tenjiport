@@ -7,6 +7,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getClientIp } from "@/lib/security/clientIp";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
 import { createSignedUpload } from "@/lib/storage/signedUpload";
+import { checkEventStorageQuota } from "@/lib/storage/eventStorageQuota";
 
 const SUBMIT_LIMIT_PER_IP = 20; // 1時間あたり
 const SUBMIT_WINDOW_SECONDS_PER_IP = 3600;
@@ -137,6 +138,9 @@ export async function createSubmissionFileUploadUrl(
 ): Promise<CreateUploadUrlResult> {
   const owner = await verifyDraftSubmissionOwnership(submissionVersionId);
   if (!owner.ok) return owner;
+
+  const quota = await checkEventStorageQuota(owner.eventId, fileSize);
+  if (!quota.ok) return quota;
 
   const storageKey = `${owner.organizerOrganizationId}/${owner.eventId}/exhibitor-uploads/${owner.participationId}/${randomUUID()}-${sanitizeStorageFilename(filename)}`;
   return createSignedUpload(storageKey, fileSize);

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { attemptCharge, type ServiceInvoiceRow } from "@/lib/billing/runEventBilling";
+import { MAX_END_DATE_MONTHS_AHEAD } from "./eventDateLimits";
 
 // イベント作成時の基本料金課金に失敗した場合のロールバック。events・service_invoicesとも
 // 一般ユーザー（RLS）にはDELETE権限が無い（eventsはRLS上そもそも削除ポリシーが無く、
@@ -29,6 +30,12 @@ function parseFormFields(formData: FormData) {
   }
   if (!endDate) {
     throw new Error("終了日は必須です。");
+  }
+
+  const maxEndDate = new Date();
+  maxEndDate.setMonth(maxEndDate.getMonth() + MAX_END_DATE_MONTHS_AHEAD);
+  if (new Date(endDate) > maxEndDate) {
+    throw new Error(`終了日は本日から${MAX_END_DATE_MONTHS_AHEAD}ヶ月以内で設定してください。`);
   }
 
   return { name, venue, start_date: startDate, end_date: endDate };

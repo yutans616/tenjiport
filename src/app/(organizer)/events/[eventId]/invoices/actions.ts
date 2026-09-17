@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getOrganizerContext, type OrganizerContext } from "@/lib/organizer/context";
 import { sanitizeStorageFilename } from "@/lib/storage/sanitizeFilename";
+import { checkEventStorageQuota } from "@/lib/storage/eventStorageQuota";
 import { processPendingNotifications } from "@/lib/notifications/processPendingNotifications";
 import { generateInvoicePdf } from "@/lib/pdf/generateInvoicePdf";
 import { resolveInvoiceLineItems } from "@/lib/pdf/resolveInvoiceLineItems";
@@ -145,6 +146,9 @@ export async function createInvoice(eventId: string, formData: FormData) {
     if (file.size > 20 * 1024 * 1024) {
       throw new Error(`ファイルサイズは20MB以下にしてください（このファイル: ${(file.size / 1024 / 1024).toFixed(1)}MB）。`);
     }
+    const quota = await checkEventStorageQuota(eventId, file.size);
+    if (!quota.ok) throw new Error(quota.error);
+
     const storageKey = `${context.organizationId}/${eventId}/invoices/${randomUUID()}-${sanitizeStorageFilename(file.name)}`;
     const serviceClient = createServiceRoleClient();
     const arrayBuffer = await file.arrayBuffer();

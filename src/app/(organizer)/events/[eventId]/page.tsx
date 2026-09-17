@@ -4,6 +4,7 @@ import { FileWarning, MailWarning, Receipt, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { updateEvent } from "../actions";
+import { maxEndDateString } from "../eventDateLimits";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -274,7 +275,7 @@ export default async function EventDetailPage({
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="end_date">終了日</Label>
-                  <Input id="end_date" type="date" name="end_date" defaultValue={event.end_date ?? ""} required />
+                  <Input id="end_date" type="date" name="end_date" defaultValue={event.end_date ?? ""} max={maxEndDateString()} required />
                 </div>
               </div>
               <div className="grid gap-1.5">
