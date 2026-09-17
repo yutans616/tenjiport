@@ -269,7 +269,7 @@ const html = `<!doctype html>
       <p>現在のPDF・Excel運用、次回開催までの準備、開催規模に応じた料金をご相談いただけます。</p>
     </div>
   </div>
-  <p style="margin-top:8mm;">お問い合わせ：info@blackishgear.com</p>
+  <p style="margin-top:8mm;">お問い合わせ：contact@tenjiport.com</p>
   <p class="muted">株式会社BlackishGear</p>
   <div class="pageno">11 / 11</div><div class="footer-brand">TenjiPort サービス資料</div>
 </section>

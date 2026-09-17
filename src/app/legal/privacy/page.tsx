@@ -68,7 +68,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
     body: (
       <>
         <p>株式会社BlackishGear</p>
-        <p>Eメール：info@blackishgear.com</p>
+        <p>Eメール：contact@tenjiport.com</p>
       </>
     ),
   },

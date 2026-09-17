@@ -17,7 +17,7 @@ export const demoConfig = {
   bookingUrl: "https://timerex.net/s/yutans616_d8ea/d14a6b7e" as string | null,
   bookingEmbedEnabled: true,
 
-  contactEmail: "info@blackishgear.com",
+  contactEmail: "contact@tenjiport.com",
 
   // 価格は確定・本番投入済み（docs/open-decisions.md）。
   pricingApproved: true,
