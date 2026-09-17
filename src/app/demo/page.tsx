@@ -9,11 +9,58 @@ import { TimeRexBooking } from "./TimeRexBooking";
 import { TrackedLink } from "./TrackedLink";
 import { ViewTracker } from "./ViewTracker";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const TITLE = "登録不要デモ｜展示会・出展者管理クラウド テンジポート";
+const DESCRIPTION =
+  "出展者情報の収集、資料配布、確認状況、入金確認をひとつの画面で。登録不要の操作デモで、主催者・出展者両方の画面を体験できます。";
+// 実際のデモ画面のスクリーンショット（LPヒーローと同じ画像）をOG画像に使う。
+// 架空の宣伝画像ではなく実画面を使う方針（tenjiport_demo_lp_spec.md 9章）。
+const OG_IMAGE = "/demo/hero-exhibitors.png";
+
+// robots.ts・sitemap.tsが/demoをインデックス対象として公開LP扱いしているため、
+// ページ側もそれに合わせてクロール・インデックスを許可する
+// （操作デモ本体の/demo/app・/demo/exhibitorはrobots.ts側でdisallow済み）。
 export const metadata: Metadata = {
-  title: "登録不要デモ｜展示会・出展者管理クラウド テンジポート",
-  description:
-    "出展者情報の収集、資料配布、確認状況、入金確認をひとつの画面で。登録不要の操作デモで、主催者・出展者両方の画面を体験できます。",
-  robots: { index: false, follow: false },
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: `${APP_URL}/demo` },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: `${APP_URL}/demo`,
+    siteName: "TenjiPort（テンジポート）",
+    locale: "ja_JP",
+    type: "website",
+    images: [{ url: OG_IMAGE, width: 1280, height: 820, alt: "テンジポートの主催者向け管理画面" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [OG_IMAGE],
+  },
+};
+
+// SoftwareApplication構造化データ。価格・対象は確定済みの実値のみ記載する
+// （docs/open-decisions.md）。評価・レビュー等の未取得の情報は含めない。
+const STRUCTURED_DATA = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "TenjiPort（テンジポート）",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  description: DESCRIPTION,
+  url: `${APP_URL}/demo`,
+  offers: {
+    "@type": "Offer",
+    price: "9800",
+    priceCurrency: "JPY",
+    description: "1開催・30社まで（税込）。31社目から1社300円（税込）。年間プランは298,000円（税込）。",
+  },
+  provider: {
+    "@type": "Organization",
+    name: "株式会社BlackishGear",
+  },
 };
 
 const NAV_LINKS = [
@@ -71,6 +118,7 @@ const FAQS = [
 export default function DemoLandingPage() {
   return (
     <main className="flex min-h-screen flex-col bg-[#F5F8FC] text-[#102C50]">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }} />
       <ViewTracker />
 
       <header className="sticky top-0 z-10 border-b border-[#DCE5EF] bg-[#F5F8FC]/95 backdrop-blur">

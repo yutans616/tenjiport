@@ -13,7 +13,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// OG画像等の相対パスを絶対URLに解決するために必要（未設定だとNext.jsが警告を出す）。
+// robots.ts・sitemap.tsと同じ環境変数を使い、本番ドメインとローカル開発とで一貫させる。
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: "TenjiPort（テンジポート）",
   description: "展示会・出展者管理クラウド — 出展者情報収集・資料共有・入金管理",
 };

@@ -272,6 +272,8 @@ LPは主要文言をHTMLで取得できる構成。title案「登録不要デモ
 
 公開LPは本番ドメインのcanonicalを設定。ステージングと操作デモはnoindex。ただしnoindexをアクセス制御とみなさない。
 
+**実施済み（2026-09-18）**：`/demo`のmetadataからnoindexを外し、canonical・OpenGraph（実画面のスクリーンショットを使用）・Twitterカード・SoftwareApplication構造化データ（JSON-LD、価格は確定値のみ記載）を追加。ルートlayoutに`metadataBase`を設定しOG画像の相対パスを解決できるようにした。`robots.ts`・`sitemap.ts`（別セッションで整備済み、`/demo`をインデックス対象・`/demo/app`と`/demo/exhibitor`は除外と正しく設定済み）とページ側metadataの整合を確認・修正（従来はページ側がnoindexのままで矛盾していた）。見出し構造（H1は1つ、以降H2/H3）も確認済み。
+
 動画、外部予約、デモ本体は遅延読み込み。画像の幅高さを指定。目標はLCP 2.5秒以内、CLS 0.1以下、INP 200ms以内。開発段階はラボ計測、公開後は取得可能な実測で確認し、未測定を達成済みとしない。
 
 ## 10. 受け入れ条件
