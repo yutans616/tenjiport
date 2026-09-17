@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import {
@@ -10,6 +11,7 @@ import {
 } from "./actions";
 import { startCardRegistration } from "./stripe-actions";
 import { SubmitButton } from "@/components/organizer/submit-button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -30,6 +32,8 @@ const BILLING_ERROR_MESSAGE: Record<string, string> = {
   confirm_failed: "請求の確定に失敗したため、イベントの作成を中止しました。時間をおいて再度お試しください。",
   annual_charge_failed: "年間プランのお支払いに失敗したため、契約を中止しました。カード情報をご確認のうえ再度お試しください。",
   annual_invoice_failed: "年間プランの請求書発行に失敗したため、契約を中止しました。時間をおいて再度お試しください。",
+  requires_authentication:
+    "カードの追加認証（3Dセキュア等）が必要なため、お支払いを完了できませんでした。認証完了のご案内メールをお送りしましたので、そちらのリンクからお手続きください（下の請求履歴からも操作できます）。",
 };
 
 const CHARGE_KIND_LABEL: Record<string, string> = { base_fee: "基本料金", overage: "超過分", annual_fee: "年間プラン利用料" };
@@ -53,6 +57,7 @@ function InvoiceHistoryList({
     due_date?: string | null;
     invoice_number: string | null;
     invoice_file_id: string | null;
+    requires_payment_authentication?: boolean | null;
     events: { name: string } | { name: string }[] | null;
   }[];
 }) {
@@ -91,13 +96,20 @@ function InvoiceHistoryList({
                       請求書PDF
                     </a>
                   )}
-                  {(inv.status === "failed" || inv.status === "uncollectible") && (
-                    <form action={retryServiceInvoiceAction.bind(null, inv.id)}>
-                      <SubmitButton size="sm" variant="outline" pendingText="再試行中...">
-                        今すぐ再試行
-                      </SubmitButton>
-                    </form>
-                  )}
+                  {(inv.status === "failed" || inv.status === "uncollectible") &&
+                    (inv.requires_payment_authentication ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        render={<Link href={`/plan/confirm-payment/${inv.id}`}>認証を完了する</Link>}
+                      />
+                    ) : (
+                      <form action={retryServiceInvoiceAction.bind(null, inv.id)}>
+                        <SubmitButton size="sm" variant="outline" pendingText="再試行中...">
+                          今すぐ再試行
+                        </SubmitButton>
+                      </form>
+                    ))}
                 </div>
               </div>
               {isAwaitingBankTransfer && (
@@ -249,7 +261,7 @@ export default async function PlanPage({
     // 年間プランの請求（クレカ払いを選んだ契約のみ、年額1件のみ発生する）。
     const { data: annualInvoices } = await supabase
       .from("service_invoices")
-      .select("id, event_id, charge_kind, total_amount_yen, status, due_date, created_at, invoice_number, invoice_file_id, events(name)")
+      .select("id, event_id, charge_kind, total_amount_yen, status, due_date, created_at, invoice_number, invoice_file_id, requires_payment_authentication, events(name)")
       .eq("service_contract_id", contract.id)
       .gt("total_amount_yen", 0)
       .order("created_at", { ascending: false });
@@ -387,7 +399,7 @@ export default async function PlanPage({
   // 超過0件の確認済みマーカー行（total_amount_yen=0）は請求として意味を持たないため表示しない。
   const { data: invoices } = await supabase
     .from("service_invoices")
-    .select("id, event_id, charge_kind, total_amount_yen, status, due_date, created_at, invoice_number, invoice_file_id, events(name)")
+    .select("id, event_id, charge_kind, total_amount_yen, status, due_date, created_at, invoice_number, invoice_file_id, requires_payment_authentication, events(name)")
     .eq("service_contract_id", contract.id)
     .gt("total_amount_yen", 0)
     .order("created_at", { ascending: false });

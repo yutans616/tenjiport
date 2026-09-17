@@ -95,6 +95,13 @@ export async function createEvent(formData: FormData) {
     }
 
     const result = await attemptCharge(invoice as ServiceInvoiceRow, event.name, false);
+    if (result.outcome === "requires_authentication") {
+      // カードの3Dセキュア等の追加認証待ちなだけなので、イベント・請求書は残し、
+      // メールで案内した認証完了リンクから支払いを完了できるようにする
+      // （ロールバックすると、あとから認証が完了してもイベントが存在しなくなってしまう）。
+      redirect("/plan?billingError=requires_authentication");
+      return;
+    }
     const succeeded =
       result.outcome === "skipped_zero_amount" ||
       (result.outcome === "charge_attempted" && result.paymentIntentStatus === "succeeded");

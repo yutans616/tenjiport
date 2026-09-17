@@ -1,6 +1,11 @@
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { createStripeClient } from "@/lib/stripe";
-import { notifyBillingRetriesExhausted, notifyChargeFailed, notifyInvoiceAwaitingPaymentMethod } from "./notifyOrganizer";
+import {
+  notifyBillingRetriesExhausted,
+  notifyChargeFailed,
+  notifyInvoiceAwaitingPaymentMethod,
+  notifyPaymentAuthenticationRequired,
+} from "./notifyOrganizer";
 
 const GRACE_PERIOD_DAYS = 1;
 const RETRY_INTERVAL_DAYS = 3;
@@ -21,7 +26,8 @@ export type AttemptChargeOutcome =
   | { outcome: "skipped_zero_amount" }
   | { outcome: "no_payment_method" }
   | { outcome: "charge_attempted"; paymentIntentStatus: string; paymentIntentId: string }
-  | { outcome: "charge_error"; paymentIntentId: string | null };
+  | { outcome: "charge_error"; paymentIntentId: string | null }
+  | { outcome: "requires_authentication"; paymentIntentId: string };
 
 function daysAgo(days: number) {
   const d = new Date();
@@ -92,12 +98,39 @@ export async function attemptCharge(
     return { outcome: "no_payment_method" };
   }
 
+  // 3Dセキュア等の追加認証が必要な場合の共通処理。挙動がoff_sessionフラグで分かれる点に注意：
+  // - off_session:true（カード情報未満・cron等、本人不在）：Stripeはこの場で
+  //   authentication_requiredエラーをthrowする（catch側で検知）。
+  // - off_session:false（イベント作成時・年間プラン開始時・手動再試行等、本人が操作中）：
+  //   Stripeはエラーをthrowせず、PaymentIntent.status='requires_action'を返す（try側で検知）。
+  // どちらの経路でも、最終的にはこの関数で同じ状態・通知にそろえる。
+  async function markRequiresAuthentication(paymentIntentId: string) {
+    await serviceClient
+      .from("service_invoices")
+      .update({
+        stripe_payment_intent_id: paymentIntentId,
+        retry_count: nextRetryCount,
+        last_charge_attempt_at: new Date().toISOString(),
+        requires_payment_authentication: true,
+        ...(invoice.status === "finalized" ? { status: "failed" } : {}),
+      })
+      .eq("id", invoice.id);
+    // 「今回は失敗扱いだが実は認証待ち」の方が、通常の失敗通知より具体的で
+    // 案内として正確なため、自動リトライ打ち切りのタイミングでもこちらを優先する。
+    await notifyPaymentAuthenticationRequired({
+      organizationId: invoice.organizer_organization_id,
+      eventName,
+      totalAmountYen: invoice.total_amount_yen,
+      invoiceId: invoice.id,
+    });
+  }
+
   const stripe = createStripeClient();
   try {
     // JPYはゼロ小数通貨のため、金額はそのまま円単位で渡す（100倍しない）。
-    // allow_redirects:'never' でリダイレクト系決済手段（3DS等の追加認証を要する場合を含む）を
-    // 明示的に無効化する。保存済みカードへの単純な即時課金のみを想定しており、
-    // 今回のスコープでは追加認証が必要なケースも「課金失敗」として扱う（本格的な3DS対応は別途）。
+    // allow_redirects:'never' でリダイレクト系決済手段（Checkoutスタイルの
+    // リダイレクトベース認証）を明示的に無効化する。3Dセキュア自体はこれとは別に
+    // requires_action/authentication_requiredとして検知し、上のmarkRequiresAuthenticationで扱う。
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: invoice.total_amount_yen,
@@ -111,6 +144,11 @@ export async function attemptCharge(
       },
       { idempotencyKey: `charge_invoice:${invoice.id}:${nextRetryCount}` },
     );
+
+    if (paymentIntent.status === "requires_action" || paymentIntent.status === "requires_confirmation") {
+      await markRequiresAuthentication(paymentIntent.id);
+      return { outcome: "requires_authentication", paymentIntentId: paymentIntent.id };
+    }
 
     await serviceClient
       .from("service_invoices")
@@ -130,16 +168,29 @@ export async function attemptCharge(
       err && typeof err === "object" && "payment_intent" in err
         ? ((err as { payment_intent?: { id?: string } }).payment_intent?.id ?? null)
         : null;
+    // off_session:trueの場合、Stripeはリダイレクト系の対応ができないと判断し、
+    // requires_action状態を返す代わりにこのエラーコードをthrowする
+    // （off_session:falseの場合の挙動はtry側のrequires_action分岐を参照）。
+    const requiresAuthentication =
+      !!err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "authentication_required";
+
+    if (requiresAuthentication && stripePaymentIntentId) {
+      await markRequiresAuthentication(stripePaymentIntentId);
+      return { outcome: "requires_authentication", paymentIntentId: stripePaymentIntentId };
+    }
+
     await serviceClient
       .from("service_invoices")
       .update({
         stripe_payment_intent_id: stripePaymentIntentId ?? invoice.stripe_payment_intent_id,
         retry_count: nextRetryCount,
         last_charge_attempt_at: new Date().toISOString(),
+        requires_payment_authentication: false,
         ...(!stripePaymentIntentId && isExhausting ? { status: "uncollectible" } : {}),
       })
       .eq("id", invoice.id);
     console.error(`event billing: charge attempt failed for invoice ${invoice.id}:`, err);
+
     if (!stripePaymentIntentId) {
       // PaymentIntent自体が作られなかった（webhookも来ない）ケースのみ、ここから直接通知する。
       if (isExhausting) {
@@ -156,6 +207,7 @@ export async function attemptCharge(
         });
       }
     }
+
     return { outcome: "charge_error", paymentIntentId: stripePaymentIntentId };
   }
 }

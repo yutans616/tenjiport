@@ -23,24 +23,29 @@ function lastDayOfCurrentMonthIso(): string {
   return `${y}-${m}-${d}`;
 }
 
+type ChargeAnnualContractResult = "succeeded" | "requires_authentication" | "failed";
+
 // 年間プランをクレカ払いで開始・切替する際に契約と同時に即時課金する。失敗時は
 // rollbackAnnualPlanContractで契約自体を取り消す（イベント作成時の基本料金課金と
-// 同じ考え方：課金できなかった契約を残さない）。
+// 同じ考え方：課金できなかった契約を残さない）。ただしカードの3Dセキュア等の追加認証が
+// 必要なだけの場合（requires_authentication）は、認証完了リンクをメールで案内できるよう
+// 契約・請求書ともにロールバックせず残す（呼び出し元で判定する）。
 async function chargeNewAnnualContract(
   supabase: Awaited<ReturnType<typeof createClient>>,
   organizationId: string,
   contractId: string,
-): Promise<boolean> {
+): Promise<ChargeAnnualContractResult> {
   const { data: invoice, error: invoiceError } = await supabase.rpc("charge_annual_plan_fee", {
     p_service_contract_id: contractId,
   });
-  if (invoiceError || !invoice) return false;
+  if (invoiceError || !invoice) return "failed";
 
   const result = await attemptCharge(invoice as ServiceInvoiceRow, "年間プラン契約", false);
+  if (result.outcome === "requires_authentication") return "requires_authentication";
   const succeeded =
     result.outcome === "skipped_zero_amount" ||
     (result.outcome === "charge_attempted" && result.paymentIntentStatus === "succeeded");
-  if (!succeeded) return false;
+  if (!succeeded) return "failed";
 
   // 表示用のpayment_method_status（この時点でカードは実際に課金に使えたことが
   // 確認済みのため、新しい契約行にも'valid'を反映する。record_payment_method_setupは
@@ -57,7 +62,7 @@ async function chargeNewAnnualContract(
       p_stripe_payment_method_id: org.stripe_default_payment_method_id,
     });
   }
-  return true;
+  return "succeeded";
 }
 
 // 年間プランを請求書払い（銀行振込）で開始・切替する際に、契約と同時に適格請求書PDFを
@@ -157,8 +162,12 @@ export async function startAnnualPlanAction(billingMethod: BillingMethod) {
   if (error || !contract) throw new Error(`プランの開始に失敗しました: ${error?.message}`);
 
   if (billingMethod === "card") {
-    const succeeded = await chargeNewAnnualContract(supabase, context.organizationId, contract.id);
-    if (!succeeded) {
+    const chargeResult = await chargeNewAnnualContract(supabase, context.organizationId, contract.id);
+    if (chargeResult === "requires_authentication") {
+      // カードの3Dセキュア等の追加認証待ちなだけなので、契約・請求書は残し、
+      // メールで案内した認証完了リンクから支払いを完了できるようにする。
+      redirect("/plan?billingError=requires_authentication");
+    } else if (chargeResult === "failed") {
       await rollbackAnnualPlanContract(contract.id);
       redirect("/plan?billingError=annual_charge_failed");
     }
@@ -191,8 +200,12 @@ export async function changeToAnnualPlanAction(billingMethod: BillingMethod) {
   if (error || !contract) throw new Error(`プラン変更に失敗しました: ${error?.message}`);
 
   if (billingMethod === "card") {
-    const succeeded = await chargeNewAnnualContract(supabase, context.organizationId, contract.id);
-    if (!succeeded) {
+    const chargeResult = await chargeNewAnnualContract(supabase, context.organizationId, contract.id);
+    if (chargeResult === "requires_authentication") {
+      // カードの3Dセキュア等の追加認証待ちなだけなので、契約・請求書は残し、
+      // メールで案内した認証完了リンクから支払いを完了できるようにする。
+      redirect("/plan?billingError=requires_authentication");
+    } else if (chargeResult === "failed") {
       await rollbackAnnualPlanContract(contract.id);
       redirect("/plan?billingError=annual_charge_failed");
     }
@@ -241,12 +254,17 @@ export async function retryServiceInvoiceAction(invoiceId: string) {
   const { data: invoice } = await supabase
     .from("service_invoices")
     .select(
-      "id, organizer_organization_id, event_id, charge_kind, total_amount_yen, status, retry_count, stripe_payment_intent_id, events(name)",
+      "id, organizer_organization_id, event_id, charge_kind, total_amount_yen, status, retry_count, stripe_payment_intent_id, requires_payment_authentication, events(name)",
     )
     .eq("id", invoiceId)
     .eq("organizer_organization_id", context.organizationId)
     .single();
   if (!invoice) throw new Error("請求が見つかりません。");
+  if (invoice.requires_payment_authentication) {
+    // カードの追加認証待ちの請求は、ここでオフセッション（本人不在）で再試行しても
+    // 同じ理由で必ず失敗する。専用の認証完了ページへ案内する。
+    redirect(`/plan/confirm-payment/${invoiceId}`);
+  }
   if (invoice.status !== "failed" && invoice.status !== "uncollectible") {
     throw new Error("この請求は再試行の対象ではありません。");
   }

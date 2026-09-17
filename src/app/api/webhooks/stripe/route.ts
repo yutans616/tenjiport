@@ -64,6 +64,10 @@ async function reflectPaymentIntentResult(
       status: finalStatus,
       charged_at: outcome === "charged" ? new Date().toISOString() : null,
       payment_event_id: paymentEventId,
+      // 認証待ちだったとしても、payment_intent.succeeded/payment_intent.payment_failedが
+      // 届いた時点でその結果は確定している（Webhookはこのイベントより後の状態変化のみを
+      // 通知するため）。成功・失敗いずれの確定時も認証待ちフラグを解除する。
+      requires_payment_authentication: false,
     })
     .eq("id", invoiceId);
 

@@ -85,6 +85,26 @@ export async function notifyChargeFailed(params: {
   );
 }
 
+// カードが3Dセキュア等の追加認証を要求し、オフセッション（顧客不在）での自動課金が
+// 完了できなかった場合の通知。本人がその場にいないと認証を完了できないため、
+// notifyChargeFailedとは別に案内リンク（/plan/confirm-payment/[invoiceId]）を出す。
+export async function notifyPaymentAuthenticationRequired(params: {
+  organizationId: string;
+  eventName: string;
+  totalAmountYen: number;
+  invoiceId: string;
+}) {
+  await sendBillingEmail(
+    params.organizationId,
+    `【要対応】${params.eventName}のご利用料金のお支払いに認証が必要です`,
+    `
+      <p>${params.eventName}のご利用料金 ¥${params.totalAmountYen.toLocaleString("ja-JP")} の決済に、カード発行会社による追加認証（3Dセキュア等）が必要なため、自動での引き落としが完了できませんでした。</p>
+      <p>下記のリンクから認証を完了していただくと、お支払いが完了します。</p>
+      <p><a href="${appUrl()}/plan/confirm-payment/${params.invoiceId}">${appUrl()}/plan/confirm-payment/${params.invoiceId}</a></p>
+    `,
+  );
+}
+
 // 自動リトライ（最大3回）を使い切った場合の一度限りの通知。以降は自動での再試行を
 // 停止するため、その旨と手動再試行の導線を案内する（notifyChargeFailedと同じ文面を
 // 繰り返し送り続けるのを避けるための専用メッセージ）。
