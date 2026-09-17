@@ -273,10 +273,17 @@ export async function runEventBilling() {
 
   // 2) 未課金（finalized・カード未登録等）または失敗（failed）の請求を、間隔をあけて自動再試行する。
   const retryBefore = daysAgo(RETRY_INTERVAL_DAYS).toISOString();
+  // requires_payment_authentication=trueの請求書は自動リトライの対象から除外する。
+  // off_session:trueで再試行しても同じ認証要求が返るだけで意味が無いうえ、そのたびに
+  // 新しいPaymentIntentが作られてservice_invoices.stripe_payment_intent_idが上書きされる。
+  // 主催者が古いPaymentIntentのclient_secretを保持したまま（例：確認画面を開きっぱなし）
+  // 後から認証を完了すると、Webhook側のstale-event判定（stripe_payment_intent_id不一致）で
+  // 無視されてしまい、実際には課金成功しているのにDB上は未確定のまま残ってしまう。
   const { data: retryCandidates } = await serviceClient
     .from("service_invoices")
     .select("id, organizer_organization_id, event_id, total_amount_yen, status, retry_count, stripe_payment_intent_id, events(name)")
     .in("status", ["finalized", "failed"])
+    .eq("requires_payment_authentication", false)
     .gt("total_amount_yen", 0)
     .lt("retry_count", MAX_RETRY_COUNT)
     .or(`last_charge_attempt_at.is.null,last_charge_attempt_at.lte.${retryBefore}`);

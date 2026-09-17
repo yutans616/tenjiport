@@ -185,6 +185,15 @@ export async function finalizeAttachmentUpload(
   }
 
   const serviceClient = createServiceRoleClient();
+
+  // アップロードURL発行時にもチェック済みだが、実際のアップロード完了までの間に
+  // 他のアップロードが割り込む競合を完全には防げないため、登録直前にも再チェックする。
+  const quota = await checkEventStorageQuota(eventId, fileSize);
+  if (!quota.ok) {
+    await serviceClient.storage.from("files").remove([storageKey]);
+    return quota;
+  }
+
   const { data: fileAsset, error: fileAssetError } = await serviceClient
     .from("file_assets")
     .insert({
@@ -238,19 +247,21 @@ export async function deleteAttachment(
     .single();
   if (!attachment) return { ok: false, error: "添付ファイルが見つかりません。" };
 
+  // Storage実体の削除を先に行う。先に紐付け行を消してしまうと、Storage削除が
+  // 失敗した場合に添付が画面から消えたのにStorage・file_assetsだけが残り、
+  // ファイル容量上限が戻らないうえ再試行する手段も無くなる（画面上は既に削除済み
+  // に見えるため）。失敗時はここで打ち切り、添付を残したままエラーを返す。
+  const deleteResult = await deleteFileAsset(attachment.file_asset_id);
+  if (!deleteResult.ok) {
+    return { ok: false, error: deleteResult.error };
+  }
+
   const { error } = await supabase
     .from("announcement_attachments")
     .delete()
     .eq("id", attachmentId)
     .eq("announcement_version_id", announcementVersionId);
   if (error) return { ok: false, error: `添付の削除に失敗しました: ${error.message}` };
-
-  // 添付の紐付けだけでなくfile_assets・Storage実体も削除しないと、イベントの
-  // ファイル容量上限（checkEventStorageQuota）が一切戻らず、削除した意味がなくなる。
-  const deleteResult = await deleteFileAsset(attachment.file_asset_id);
-  if (!deleteResult.ok) {
-    console.error(`deleteAttachment: failed to delete file_asset ${attachment.file_asset_id}:`, deleteResult.error);
-  }
 
   revalidatePath(`/events/${eventId}/announcements/${announcementVersionId}`);
   return { ok: true };

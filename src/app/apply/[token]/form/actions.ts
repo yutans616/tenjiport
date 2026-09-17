@@ -169,6 +169,16 @@ export async function finalizeSubmissionFileUpload(
   }
 
   const serviceClient = createServiceRoleClient();
+
+  // アップロードURL発行時にもチェック済みだが、実際のアップロード（数秒〜）が
+  // 完了するまでの間に他のアップロードが割り込む競合を完全には防げないため、
+  // 登録直前にも再チェックする（完全な排他制御ではないが窓を大幅に狭められる）。
+  const quota = await checkEventStorageQuota(owner.eventId, fileSize);
+  if (!quota.ok) {
+    await serviceClient.storage.from("files").remove([storageKey]);
+    return quota;
+  }
+
   const { data: fileAsset, error: fileAssetError } = await serviceClient
     .from("file_assets")
     .insert({

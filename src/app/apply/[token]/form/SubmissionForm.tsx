@@ -468,7 +468,12 @@ function FileFieldInput({
       // 新しいファイルの登録が確実に成功した後に削除する（先に消すと新規アップロード
       // 失敗時にファイルが無い状態になってしまうため）。
       if (value?.fileAssetId) {
-        await deleteSubmissionFile(submissionVersionId, value.fileAssetId);
+        const cleanupResult = await deleteSubmissionFile(submissionVersionId, value.fileAssetId);
+        // 新しいファイルは既に登録済みなのでユーザー操作は失敗させない（差し替え自体は成功）。
+        // 旧ファイルの掃除に失敗した場合はコンソールにだけ残す（低頻度想定、追跡目的）。
+        if (!cleanupResult.ok) {
+          console.error("旧ファイルの削除に失敗しました:", cleanupResult.error);
+        }
       }
 
       onChange(fieldKey, { fileAssetId: finalizeResult.fileAssetId, filename: finalizeResult.filename });

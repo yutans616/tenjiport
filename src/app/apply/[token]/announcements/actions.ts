@@ -117,6 +117,15 @@ export async function finalizeAnnouncementSubmissionUpload(
 
   const supabase = await createClient();
   const serviceClient = createServiceRoleClient();
+
+  // アップロードURL発行時にもチェック済みだが、実際のアップロード完了までの間に
+  // 他のアップロードが割り込む競合を完全には防げないため、登録直前にも再チェックする。
+  const quota = await checkEventStorageQuota(submitter.eventId, fileSize);
+  if (!quota.ok) {
+    await serviceClient.storage.from("files").remove([storageKey]);
+    return quota;
+  }
+
   const { data: fileAsset, error: fileAssetError } = await serviceClient
     .from("file_assets")
     .insert({
@@ -167,16 +176,17 @@ export async function deleteAnnouncementSubmission(
     .single();
   if (!submission) return { ok: false, error: "提出物が見つかりません。" };
 
+  // Storage実体の削除を先に行う。先に紐付け行を消すと、Storage削除が失敗した場合に
+  // 提出物が画面から消えたのにStorage・file_assetsだけ残り、ファイル容量上限が戻らない
+  // うえ再試行する手段も無くなる（画面上は既に削除済みに見えるため）。
+  const deleteResult = await deleteFileAsset(submission.file_asset_id);
+  if (!deleteResult.ok) {
+    return { ok: false, error: deleteResult.error };
+  }
+
   const { error } = await supabase.from("announcement_submissions").delete().eq("id", submissionId);
   if (error) {
     return { ok: false, error: `削除に失敗しました: ${error.message}` };
-  }
-
-  // 紐付けだけでなくfile_assets・Storage実体も削除しないと、イベントのファイル容量上限
-  // （checkEventStorageQuota）が一切戻らない。
-  const deleteResult = await deleteFileAsset(submission.file_asset_id);
-  if (!deleteResult.ok) {
-    console.error(`deleteAnnouncementSubmission: failed to delete file_asset ${submission.file_asset_id}:`, deleteResult.error);
   }
 
   revalidatePath(`/apply/${token}/announcements/${announcementVersionId}`);
