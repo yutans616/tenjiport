@@ -1,7 +1,9 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { type NextRequest } from "next/server";
 import { DEMO_SESSION_COOKIE } from "@/lib/demo/constants";
 import { getOrCreateDemoSession } from "@/lib/demo/ephemeral";
-import { buildSilentLoginUrl, getDemoEventForOrganization } from "@/lib/demo/session";
+import { silentSignIn, getDemoEventForOrganization } from "@/lib/demo/session";
 
 // 操作デモの「出展者側に切り替える」導線（tenjiport_demo_lp_spec.md 4.2節 手順4）。
 // 既存のCookie（/demo/appで発行済み）があればそのセッションのデモ組織を再利用し、
@@ -13,14 +15,15 @@ export async function GET(request: NextRequest) {
   const session = await getOrCreateDemoSession(cookieToken);
   const { publicFormToken } = await getDemoEventForOrganization(session.organizationId);
 
-  const url = await buildSilentLoginUrl(`demo-${session.token}-featured@example.com`, `/apply/${publicFormToken}`);
-  const response = NextResponse.redirect(url);
-  response.cookies.set(DEMO_SESSION_COOKIE, session.token, {
+  const cookieStore = await cookies();
+  cookieStore.set(DEMO_SESSION_COOKIE, session.token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     expires: new Date(session.expiresAt),
   });
-  return response;
+
+  await silentSignIn(`demo-${session.token}-featured@example.com`);
+  redirect(`/apply/${publicFormToken}`);
 }

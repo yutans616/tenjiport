@@ -1,26 +1,32 @@
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { createClient } from "@/lib/supabase/server";
 
 /**
- * デモ専用の固定アカウントへ、メール送信なしでサイレントログインするためのURLを組み立てる。
- * 既存の招待・パスワードリセット（team/actions.ts・login/actions.ts）と同じ
- * admin.generateLink → /auth/confirm?token_hash=... のパターンを流用するが、
- * メール送信はせずサーバー側でそのままリダイレクトする点だけが異なる
+ * デモ専用の固定アカウントへ、メール送信なしでサイレントログインする（セッションCookieを
+ * 直接発行する）。既存の招待・パスワードリセット（team/actions.ts・login/actions.ts）と
+ * 同じadmin.generateLinkパターンを流用するが、メールも送らずリダイレクトも経由せず、
+ * このリクエストの中でverifyOtpまで完結させる点が異なる
  * （tenjiport_demo_lp_spec.md 4.3節：認証はSupabase Authを経由するが実メールは送らない）。
+ * `/auth/confirm`（メール経由の確認リンク限定で、事前スキャン対策のワンクリック確認を挟む
+ * ようになった）を経由しないことで、デモの「ワンクリックで即アプリ」という体験を維持する。
  * 対象メールアドレスは事前にadmin.createUserで作成済みの固定デモアカウントに限定して使うこと。
+ * 呼び出し元（Route Handler）はこの後 redirect(next) すること。
  */
-export async function buildSilentLoginUrl(email: string, next: string): Promise<string> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+export async function silentSignIn(email: string): Promise<void> {
   const serviceClient = createServiceRoleClient();
-  const { data, error } = await serviceClient.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-    options: { redirectTo: `${appUrl}${next}` },
-  });
+  const { data, error } = await serviceClient.auth.admin.generateLink({ type: "magiclink", email });
   if (error || !data?.properties?.hashed_token) {
     throw new Error(`デモ用ログインリンクの発行に失敗しました: ${error?.message ?? "unknown error"}`);
   }
-  const verificationType = data.properties.verification_type ?? "magiclink";
-  return `${appUrl}/auth/confirm?token_hash=${data.properties.hashed_token}&type=${verificationType}&next=${encodeURIComponent(next)}`;
+
+  const supabase = await createClient();
+  const { error: verifyError } = await supabase.auth.verifyOtp({
+    type: "magiclink",
+    token_hash: data.properties.hashed_token,
+  });
+  if (verifyError) {
+    throw new Error(`デモ用ログインに失敗しました: ${verifyError.message}`);
+  }
 }
 
 /** 指定した組織に紐づく、現在openなデモイベントを取得する（訪問者ごとに組織が異なる）。 */
