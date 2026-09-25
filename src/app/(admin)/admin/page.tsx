@@ -61,12 +61,16 @@ export default async function AdminOverviewPage() {
 
   // 営業LP（/demo）の計測。GA4と並行して自社DB（demo_analytics_events）にも
   // 記録しているため、GA4未設定でもここで即座に集計できる（tenjiport_demo_lp_spec.md 8章）。
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // ローリング30日ではなく、営業メール配信キャンペーンの開始日（JST基準）を固定の起点にする
+  // （開発・検証中に発生したノイズを含めないため、既存データはクリーンアップ済み）。
+  // 新しいキャンペーンを開始したら、この2行を更新すること。
+  const CAMPAIGN_START_DATE_JST = "2026-09-25";
+  const CAMPAIGN_START_DISPLAY = "2026年9月25日";
+  const campaignStartUtc = new Date(`${CAMPAIGN_START_DATE_JST}T00:00:00+09:00`).toISOString();
   const { data: recentDemoEvents } = await admin
     .from("demo_analytics_events")
     .select("event_type")
-    .gte("created_at", thirtyDaysAgo.toISOString());
+    .gte("created_at", campaignStartUtc);
   const countByType = (type: string) => (recentDemoEvents ?? []).filter((e) => e.event_type === type).length;
   const demoLpViews = countByType("demo_lp_view");
   const demoStartClicks = countByType("demo_start_click");
@@ -140,7 +144,9 @@ export default async function AdminOverviewPage() {
       </div>
 
       <div>
-        <h2 className="text-base font-semibold tracking-tight">営業LP（/demo）の計測（直近30日）</h2>
+        <h2 className="text-base font-semibold tracking-tight">
+          営業LP（/demo）の計測（{CAMPAIGN_START_DISPLAY}の配信開始〜）
+        </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           GA4と並行して自社DBにも記録した実績です。予約クリック等は「操作した」事実のみで、予約確定や利用開始そのものを意味しません。
         </p>
