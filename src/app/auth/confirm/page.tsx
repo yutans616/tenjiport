@@ -15,7 +15,7 @@ export default async function AuthConfirmPage({
 }) {
   const { token_hash, type, next } = await searchParams;
 
-  if (!token_hash || !type) {
+  if (!token_hash) {
     return (
       <div className="flex min-h-screen flex-1 items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -40,7 +40,7 @@ export default async function AuthConfirmPage({
           <p className="text-sm text-muted-foreground">下のボタンを押すとログインが完了します。</p>
           <form action={confirmEmailAction}>
             <input type="hidden" name="token_hash" value={token_hash} />
-            <input type="hidden" name="type" value={type} />
+            <input type="hidden" name="type" value={type ?? ""} />
             <input type="hidden" name="next" value={next ?? ""} />
             <SubmitButton pendingText="確認中..." className="w-full">
               ログインを完了する
