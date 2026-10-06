@@ -12,18 +12,23 @@ export default async function NewEventPage() {
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
-  // プラン未選択（契約なし）の組織はまずプランを選んでもらう。
+  // プラン未選択（契約なし）の組織はまずプランを選んでもらう。運営者アカウント
+  // （billing_exempt）は契約なしで作成でき、課金もされない（createEventと同じ扱い）。
   const supabase = await createClient();
-  const { data: contract } = await supabase
-    .from("service_contracts")
-    .select("id, plan_type, pricing_config_id")
-    .eq("organizer_organization_id", context.organizationId)
-    .eq("status", "active")
-    .maybeSingle();
-  if (!contract) redirect("/plan");
+  const [{ data: org }, { data: contract }] = await Promise.all([
+    supabase.from("organizer_organizations").select("billing_exempt").eq("id", context.organizationId).single(),
+    supabase
+      .from("service_contracts")
+      .select("id, plan_type, pricing_config_id")
+      .eq("organizer_organization_id", context.organizationId)
+      .eq("status", "active")
+      .maybeSingle(),
+  ]);
+  const billingExempt = org?.billing_exempt === true;
+  if (!contract && !billingExempt) redirect("/plan");
 
   let baseFeeYen: number | null = null;
-  if (contract.plan_type === "standard") {
+  if (!billingExempt && contract?.plan_type === "standard") {
     const { data: pricing } = await supabase
       .from("pricing_configs")
       .select("base_fee_yen")
