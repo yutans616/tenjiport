@@ -19,6 +19,10 @@ function resolveMessage(done: string, count?: string): string {
     const n = Number(count ?? 0);
     return n > 0 ? `${n}件の請求書を発行しました。` : "対象者がいなかったため、請求書は発行されませんでした。";
   }
+  if (done === "bulk_reminded") {
+    const n = Number(count ?? 0);
+    return n > 0 ? `未入金の${n}件に請求書を再送しました。` : "未入金の請求書がないため、再送は行われませんでした。";
+  }
   return MESSAGES[done] ?? "完了しました。";
 }
 

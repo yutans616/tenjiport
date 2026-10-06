@@ -280,6 +280,38 @@ export async function resendInvoiceReminderAction(eventId: string, invoiceId: st
   redirect(`/events/${eventId}/invoices/${invoiceId}?done=invoice_resent`);
 }
 
+export async function remindUnpaidInvoicesBulkAction(eventId: string) {
+  const { supabase, context } = await requireOrganizerEvent(eventId);
+  if (context.role !== "owner" && context.role !== "admin") {
+    throw new Error("この操作を行う権限がありません。");
+  }
+
+  const { data: participations } = await supabase
+    .from("event_participations")
+    .select("id")
+    .eq("event_id", eventId)
+    .neq("status", "cancelled");
+  const { data: unpaidInvoices } = await supabase
+    .from("exhibitor_invoices")
+    .select("id")
+    .in("event_participation_id", (participations ?? []).map((p) => p.id))
+    .eq("payment_status", "unpaid");
+
+  let remindedCount = 0;
+  for (const invoice of unpaidInvoices ?? []) {
+    const { error } = await supabase.rpc("resend_invoice_reminder", { p_invoice_id: invoice.id });
+    if (error) {
+      console.error(`bulk invoice reminder failed for ${invoice.id}: ${error.message}`);
+      continue;
+    }
+    remindedCount++;
+  }
+
+  await processPendingNotifications(Math.max(50, remindedCount));
+  revalidatePath(`/events/${eventId}/invoices`);
+  redirect(`/events/${eventId}/invoices?payment=unpaid&done=bulk_reminded&count=${remindedCount}`);
+}
+
 export async function updateInvoiceDetails(eventId: string, invoiceId: string, formData: FormData) {
   const { supabase } = await requireOrganizerEvent(eventId);
 
