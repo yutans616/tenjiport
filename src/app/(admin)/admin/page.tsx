@@ -149,6 +149,9 @@ export default async function AdminOverviewPage() {
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           GA4と並行して自社DBにも記録した実績です。予約クリック等は「操作した」事実のみで、予約確定や利用開始そのものを意味しません。
+          この運営者ページを開いたブラウザは自動的に計測対象外になります（他の端末は
+          <code className="mx-0.5">/demo?internal=1</code>
+          を一度開くと除外、<code className="mx-0.5">?internal=0</code>で解除）。
         </p>
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">

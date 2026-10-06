@@ -1,5 +1,7 @@
 "use client";
 
+import { isInternalTraffic } from "./internalTraffic";
+
 // 計測ヘルパー（tenjiport_demo_lp_spec.md 8章）。GA4のgtag.js（src/app/demo/
 // GoogleAnalytics.tsxが読み込む）に加えて、/api/demo/trackへも同じイベントを送り
 // 自社DB（demo_analytics_events）に記録する。GA4未設定・分析ブロック時でも
@@ -20,6 +22,8 @@ declare global {
 }
 
 export function track(event: DemoTrackEvent, props: Record<string, string> = {}) {
+  if (isInternalTraffic()) return;
+
   try {
     if (typeof window.gtag === "function") {
       window.gtag("event", event, props);

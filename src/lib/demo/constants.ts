@@ -10,3 +10,8 @@ export const DEMO_SESSION_COOKIE = "demo_token";
 // 同一セッションを使い回して再現性のある素材を作れるようにする。実際の訪問者には
 // 割り当てない（ランダムなトークンを使う）。
 export const QA_STABLE_DEMO_TOKEN = "qa-stable-session";
+
+// 運営者自身のアクセスを営業LPの計測（GA4・自社DB）から除外するためのCookie。
+// /adminを開いたブラウザに自動でセットされるほか、/demo?internal=1 でセット、
+// /demo?internal=0 で解除できる。
+export const INTERNAL_TRAFFIC_COOKIE = "tp_internal";

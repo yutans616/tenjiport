@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/admin/context";
+import { InternalTrafficMarker } from "@/app/demo/InternalTrafficMarker";
 
 // TenjiPort運営者専用の管理ページ。組織横断でデータを見るため、各ページはservice
 // roleクライアントでデータ取得する（RLSは主催者側の閲覧範囲を守るためのものであり、
@@ -9,6 +10,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/20">
+      <InternalTrafficMarker mode="always" />
       <header className="flex h-14 shrink-0 items-center gap-6 border-b bg-background px-6">
         <span className="text-sm font-semibold tracking-tight">TenjiPort 運営者ページ</span>
         <nav className="flex items-center gap-4 text-sm text-muted-foreground">
