@@ -2,10 +2,16 @@
 // brand（ブランド共通情報）内の予約キーは exhibitor_profiles への自動同期対象（actions.tsのPRESET_FIELDSと共通）。
 type TemplateChoice = string | { label: string; price_yen: number; capacity: number | null };
 
-export const SECTION_TEMPLATES: Record<
-  string,
-  { title: string; fields: { key: string; label: string; type: string; required?: boolean; options?: TemplateChoice[] }[] }
-> = {
+export type TemplateField = {
+  key: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  helpText?: string;
+  options?: TemplateChoice[];
+};
+
+export const SECTION_TEMPLATES: Record<string, { title: string; fields: TemplateField[] }> = {
   brand: {
     title: "ブランド共通情報",
     fields: [
@@ -54,6 +60,33 @@ export const SECTION_TEMPLATES: Record<
       },
     ],
   },
+  // 価格は一般的な展示会の相場を参考にした初期値（税込想定）。主催者が実際の価格に編集する前提。
+  // 選択した各品目は数量付きで確定金額に加算され、請求書PDFにも品目ごとの明細として載る。
+  options: {
+    title: "オプション品",
+    fields: [
+      {
+        key: "option_items",
+        label: "オプション品",
+        type: "multi_select",
+        helpText: "必要なものを選択し、数量を入力してください。",
+        options: [
+          { label: "追加電源（100V・1kW）", price_yen: 11000, capacity: null },
+          { label: "長机（W1800×D450）", price_yen: 2200, capacity: null },
+          { label: "パイプ椅子", price_yen: 550, capacity: null },
+          { label: "白布（長机用）", price_yen: 1100, capacity: null },
+          { label: "スポットライト", price_yen: 3300, capacity: null },
+          { label: "展示台（W900×D450×H700）", price_yen: 5500, capacity: null },
+          { label: "パンチカーペット（1㎡）", price_yen: 1650, capacity: null },
+          { label: "社名板（追加・変更）", price_yen: 3300, capacity: null },
+          { label: "ゴミ箱", price_yen: 550, capacity: null },
+          { label: "無線LAN（会期中）", price_yen: 16500, capacity: null },
+          { label: "追加出展者パス", price_yen: 1100, capacity: null },
+          { label: "駐車券（1日）", price_yen: 2000, capacity: null },
+        ],
+      },
+    ],
+  },
   power: {
     title: "電源・備品",
     fields: [
@@ -83,3 +116,24 @@ export const SECTION_TEMPLATES: Record<
     ],
   },
 };
+
+// セクションがどのテンプレート由来かはタイトルで判定する（form_sectionsにテンプレート種別の
+// 列は無い）。タイトルを変更したセクションはカスタム扱いになり、全テンプレートの項目を選べる。
+export function findTemplateKeyByTitle(title: string): string | null {
+  return Object.entries(SECTION_TEMPLATES).find(([, t]) => t.title === title)?.[0] ?? null;
+}
+
+export function findTemplateField(templateKey: string, fieldKey: string): TemplateField | null {
+  return SECTION_TEMPLATES[templateKey]?.fields.find((f) => f.key === fieldKey) ?? null;
+}
+
+export function toFieldRow(field: TemplateField) {
+  return {
+    key: field.key,
+    label: field.label,
+    type: field.type,
+    required: field.required ?? false,
+    help_text: field.helpText ?? null,
+    options_json: field.options ? { choices: field.options } : null,
+  };
+}

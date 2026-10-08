@@ -9,6 +9,7 @@ import { FieldForm } from "./FieldForm";
 import { FIELD_TYPE_LABEL } from "./fieldTypes";
 import { formatChoicesSummary, serializeChoicesForEdit, type Choice } from "./choiceUtils";
 import { formatRepeatingFieldsSummary, serializeRepeatingFieldsForEdit } from "./repeatingUtils";
+import { cn } from "@/lib/utils";
 
 export type FieldRowData = {
   id: string;
@@ -23,14 +24,18 @@ export function FieldRow({
   field,
   updateAction,
   deleteAction,
-  moveUpAction,
-  moveDownAction,
+  onMoveUp,
+  onMoveDown,
+  dragHandle,
+  containerProps,
 }: {
   field: FieldRowData;
   updateAction: (formData: FormData) => void | Promise<void>;
   deleteAction: (formData: FormData) => void | Promise<void>;
-  moveUpAction?: (formData: FormData) => void | Promise<void>;
-  moveDownAction?: (formData: FormData) => void | Promise<void>;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  dragHandle?: React.ReactNode;
+  containerProps?: React.LiHTMLAttributes<HTMLLIElement>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const choicesSummary = formatChoicesSummary(field.options_json);
@@ -39,7 +44,7 @@ export function FieldRow({
   if (isEditing) {
     const { options, pricedOptions } = serializeChoicesForEdit(field.options_json);
     return (
-      <li className="rounded-lg border bg-muted/30 px-3 py-3">
+      <li {...containerProps} className={cn("rounded-lg border bg-muted/30 px-3 py-3", containerProps?.className)}>
         <FieldForm
           action={async (formData) => {
             await updateAction(formData);
@@ -62,7 +67,15 @@ export function FieldRow({
   }
 
   return (
-    <li className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+    <li
+      {...containerProps}
+      className={cn(
+        "flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2 text-sm",
+        containerProps?.className,
+      )}
+    >
+      <span className="flex items-center gap-2">
+      {dragHandle}
       <span className="flex flex-col gap-1">
         <span className="flex items-center gap-2">
           {field.label}
@@ -79,29 +92,30 @@ export function FieldRow({
           <span className="text-xs text-muted-foreground">{choicesSummary ?? repeatingSummary}</span>
         )}
       </span>
+      </span>
       <div className="flex shrink-0 items-center gap-1">
-        {moveUpAction ? (
-          <form action={moveUpAction}>
-            <SubmitButton variant="ghost" size="icon" className="size-7 text-muted-foreground" pendingText="…" title="上へ移動">
-              <ChevronUp className="size-3.5" />
-            </SubmitButton>
-          </form>
-        ) : (
-          <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" disabled title="上へ移動">
-            <ChevronUp className="size-3.5" />
-          </Button>
-        )}
-        {moveDownAction ? (
-          <form action={moveDownAction}>
-            <SubmitButton variant="ghost" size="icon" className="size-7 text-muted-foreground" pendingText="…" title="下へ移動">
-              <ChevronDown className="size-3.5" />
-            </SubmitButton>
-          </form>
-        ) : (
-          <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" disabled title="下へ移動">
-            <ChevronDown className="size-3.5" />
-          </Button>
-        )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground"
+          disabled={!onMoveUp}
+          onClick={onMoveUp}
+          title="上へ移動"
+        >
+          <ChevronUp className="size-3.5" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground"
+          disabled={!onMoveDown}
+          onClick={onMoveDown}
+          title="下へ移動"
+        >
+          <ChevronDown className="size-3.5" />
+        </Button>
         <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
           編集
         </Button>

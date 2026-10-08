@@ -5,21 +5,21 @@ import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import {
   addField,
-  addPresetField,
   addSection,
   addSectionTemplate,
+  addTemplateField,
   copySectionsFromEvent,
   deleteField,
   deleteSection,
   ensureDraftForm,
-  moveField,
   moveSection,
   publishForm,
   regeneratePublicToken,
+  reorderFields,
   updateField,
   updateSectionTitle,
 } from "./actions";
-import { SECTION_TEMPLATES } from "./templates";
+import { SECTION_TEMPLATES, findTemplateKeyByTitle } from "./templates";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,21 +29,26 @@ import { Separator } from "@/components/ui/separator";
 import { SuccessBanner } from "@/components/organizer/success-banner";
 import { CopyButton } from "@/components/organizer/copy-button";
 import { FieldForm } from "./FieldForm";
-import { FieldRow } from "./FieldRow";
+import { SortableFieldList } from "./SortableFieldList";
 import { SectionTitleEditor } from "./SectionTitleEditor";
 
-const PRESET_FIELD_OPTIONS: { key: string; label: string }[] = [
-  { key: "brand_name", label: "ブランド名" },
-  { key: "company_name", label: "会社名" },
-  { key: "default_contact_name", label: "担当者氏名" },
-  { key: "default_contact_email", label: "担当者メールアドレス" },
-  { key: "default_contact_phone", label: "担当者電話番号" },
-  { key: "website", label: "Webサイト" },
-  { key: "sns_instagram", label: "Instagram" },
-  { key: "sns_facebook", label: "Facebook（Meta）" },
-  { key: "sns_x", label: "X（旧Twitter）" },
-  { key: "sns_youtube", label: "YouTube" },
-];
+// セクション下部の「よく使う項目」ボタン。テンプレート由来のセクションにはそのテンプレートの
+// 項目だけを、カスタムセクション（タイトル変更したものを含む）には全テンプレートの項目を
+// テンプレートごとに出す。いずれもフォーム内で既に使われている項目は出さない。
+function templateFieldGroups(sectionTitle: string, usedKeys: Set<string>) {
+  const ownTemplateKey = findTemplateKeyByTitle(sectionTitle);
+  const templateKeys = ownTemplateKey ? [ownTemplateKey] : Object.keys(SECTION_TEMPLATES);
+  return {
+    isCustom: !ownTemplateKey,
+    groups: templateKeys
+      .map((templateKey) => ({
+        templateKey,
+        title: SECTION_TEMPLATES[templateKey].title,
+        fields: SECTION_TEMPLATES[templateKey].fields.filter((f) => !usedKeys.has(f.key)),
+      }))
+      .filter((g) => g.fields.length > 0),
+  };
+}
 
 export default async function FormBuilderPage({
   params,
@@ -97,6 +102,7 @@ export default async function FormBuilderPage({
   const regenerateTokenWithId = regeneratePublicToken.bind(null, eventId);
 
   const usedTemplateTitles = new Set((sections ?? []).map((s) => s.title));
+  const usedFieldKeys = new Set((sections ?? []).flatMap((s) => (s.form_fields ?? []).map((f) => f.key)));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8">
@@ -163,6 +169,15 @@ export default async function FormBuilderPage({
           const isFirstSection = sectionIndex === 0;
           const isLastSection = sectionIndex === (sections?.length ?? 0) - 1;
           const sortedFields = (section.form_fields ?? []).slice().sort((a, b) => a.order - b.order);
+          const quickAdd = templateFieldGroups(section.title, usedFieldKeys);
+          const quickAddButtons = (group: (typeof quickAdd.groups)[number]) =>
+            group.fields.map((f) => (
+              <form key={f.key} action={addTemplateField.bind(null, eventId, formId, section.id, group.templateKey, f.key)}>
+                <SubmitButton variant="outline" size="sm" className="rounded-full" pendingText="追加中...">
+                  + {f.label}
+                </SubmitButton>
+              </form>
+            ));
           return (
             <Card key={section.id}>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -199,33 +214,34 @@ export default async function FormBuilderPage({
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {sortedFields.length > 0 && (
-                  <ul className="flex flex-col gap-2">
-                    {sortedFields.map((field, fieldIndex) => (
-                      <FieldRow
-                        key={field.id}
-                        field={field}
-                        updateAction={updateField.bind(null, eventId, field.id)}
-                        deleteAction={deleteField.bind(null, eventId, field.id)}
-                        moveUpAction={fieldIndex === 0 ? undefined : moveField.bind(null, eventId, section.id, field.id, "up")}
-                        moveDownAction={
-                          fieldIndex === sortedFields.length - 1
-                            ? undefined
-                            : moveField.bind(null, eventId, section.id, field.id, "down")
-                        }
-                      />
-                    ))}
-                  </ul>
+                  <SortableFieldList
+                    fields={sortedFields.map((field) => ({
+                      field,
+                      updateAction: updateField.bind(null, eventId, field.id),
+                      deleteAction: deleteField.bind(null, eventId, field.id),
+                    }))}
+                    reorderAction={reorderFields.bind(null, eventId, section.id)}
+                  />
                 )}
 
-              <div className="flex flex-wrap gap-2">
-                {PRESET_FIELD_OPTIONS.map((preset) => (
-                  <form key={preset.key} action={addPresetField.bind(null, eventId, section.id, preset.key)}>
-                    <SubmitButton variant="outline" size="sm" className="rounded-full" pendingText="追加中...">
-                      + {preset.label}
-                    </SubmitButton>
-                  </form>
+              {quickAdd.groups.length > 0 &&
+                (quickAdd.isCustom ? (
+                  <details className="text-sm" open={sortedFields.length === 0}>
+                    <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+                      + テンプレートの項目から追加
+                    </summary>
+                    <div className="mt-3 flex flex-col gap-3">
+                      {quickAdd.groups.map((group) => (
+                        <div key={group.templateKey}>
+                          <p className="mb-1.5 text-xs text-muted-foreground">{group.title}</p>
+                          <div className="flex flex-wrap gap-2">{quickAddButtons(group)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : (
+                  <div className="flex flex-wrap gap-2">{quickAddButtons(quickAdd.groups[0])}</div>
                 ))}
-              </div>
 
               <Separator />
 

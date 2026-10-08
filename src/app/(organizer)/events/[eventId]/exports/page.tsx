@@ -58,6 +58,26 @@ export default async function ExportsPage({
 
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">料金・請求一覧</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              料金が発生する項目（ブース・オプション品など）の選択内容と小計、確定金額、請求書の番号・金額・入金状況、未請求額を出展者ごとに出力します。
+            </p>
+            <Button
+              variant="outline"
+              render={
+                <Link href={`/events/${eventId}/export/billing`}>
+                  <Download />
+                  CSVでダウンロード
+                </Link>
+              }
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">ブランド紹介CSV＋ロゴZIP</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">

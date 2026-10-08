@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
-import { SECTION_TEMPLATES } from "./templates";
+import { SECTION_TEMPLATES, findTemplateField, toFieldRow } from "./templates";
 import { FIELD_TYPES } from "./fieldTypes";
 
 // 選択肢入力（プレーンなカンマ区切り欄・価格/在庫付きの複数行欄・繰り返し入力のサブ項目欄）を
@@ -55,21 +55,18 @@ function buildOptionsJson(
   return null;
 }
 
-// 同じ親（フォーム内のセクション、またはセクション内の項目）に属する行の中で、
-// order列を1つ隣（上/下）の行と入れ替える。form_sections/form_fieldsのorderには
-// ユニーク制約が無いため、2回に分けたUPDATEで安全に入れ替えられる。
-async function swapOrder(
+// フォーム内のセクションの並びで、order列を1つ隣（上/下）の行と入れ替える。
+// form_sectionsのorderにはユニーク制約が無いため、2回に分けたUPDATEで安全に入れ替えられる。
+async function swapSectionOrder(
   supabase: Awaited<ReturnType<typeof requireOrganizerEvent>>["supabase"],
-  table: "form_sections" | "form_fields",
-  scopeColumn: "form_id" | "form_section_id",
-  scopeValue: string,
+  formId: string,
   currentId: string,
   direction: "up" | "down",
 ) {
   const { data: items } = await supabase
-    .from(table)
+    .from("form_sections")
     .select("id, order")
-    .eq(scopeColumn, scopeValue)
+    .eq("form_id", formId)
     .order("order", { ascending: true });
   if (!items) return;
 
@@ -79,19 +76,13 @@ async function swapOrder(
 
   const current = items[idx];
   const neighbor = items[neighborIdx];
-  await supabase.from(table).update({ order: neighbor.order }).eq("id", current.id);
-  await supabase.from(table).update({ order: current.order }).eq("id", neighbor.id);
+  await supabase.from("form_sections").update({ order: neighbor.order }).eq("id", current.id);
+  await supabase.from("form_sections").update({ order: current.order }).eq("id", neighbor.id);
 }
 
 export async function moveSection(eventId: string, formId: string, sectionId: string, direction: "up" | "down") {
   const { supabase } = await requireOrganizerEvent(eventId);
-  await swapOrder(supabase, "form_sections", "form_id", formId, sectionId, direction);
-  revalidatePath(`/events/${eventId}/form`);
-}
-
-export async function moveField(eventId: string, sectionId: string, fieldId: string, direction: "up" | "down") {
-  const { supabase } = await requireOrganizerEvent(eventId);
-  await swapOrder(supabase, "form_fields", "form_section_id", sectionId, fieldId, direction);
+  await swapSectionOrder(supabase, formId, sectionId, direction);
   revalidatePath(`/events/${eventId}/form`);
 }
 
@@ -184,15 +175,7 @@ export async function addSectionTemplate(eventId: string, formId: string, templa
     .single();
   if (sectionError || !section) throw new Error(`セクションの追加に失敗しました: ${sectionError?.message}`);
 
-  const fieldRows = template.fields.map((f, i) => ({
-    form_section_id: section.id,
-    key: f.key,
-    label: f.label,
-    type: f.type,
-    required: f.required ?? false,
-    options_json: f.options ? { choices: f.options } : null,
-    order: i,
-  }));
+  const fieldRows = template.fields.map((f, i) => ({ ...toFieldRow(f), form_section_id: section.id, order: i }));
 
   const { error: fieldsError } = await supabase.from("form_fields").insert(fieldRows);
   if (fieldsError) throw new Error(`項目の追加に失敗しました: ${fieldsError.message}`);
@@ -241,7 +224,7 @@ export async function copySectionsFromEvent(eventId: string, formId: string, for
     .limit(1);
   let nextSectionOrder = (existingSections?.[0]?.order ?? -1) + 1;
 
-  const reservedKeys = new Set(Object.keys(PRESET_FIELDS));
+  const reservedKeys = new Set(SECTION_TEMPLATES.brand.fields.map((f) => f.key));
 
   for (const section of sourceSections) {
     const { data: newSection, error: sectionError } = await supabase
@@ -315,24 +298,22 @@ export async function addField(eventId: string, sectionId: string, formData: For
   revalidatePath(`/events/${eventId}/form`);
 }
 
-const PRESET_FIELDS: Record<string, { label: string; type: string }> = {
-  brand_name: { label: "ブランド名", type: "short_text" },
-  company_name: { label: "会社名", type: "short_text" },
-  default_contact_name: { label: "担当者氏名", type: "short_text" },
-  default_contact_email: { label: "担当者メールアドレス", type: "short_text" },
-  default_contact_phone: { label: "担当者電話番号", type: "short_text" },
-  website: { label: "Webサイト", type: "short_text" },
-  sns_instagram: { label: "Instagram", type: "short_text" },
-  sns_facebook: { label: "Facebook（Meta）", type: "short_text" },
-  sns_x: { label: "X（旧Twitter）", type: "short_text" },
-  sns_youtube: { label: "YouTube", type: "short_text" },
-};
-
-// ブランド共通情報の予約キーで項目を追加する（exhibitor_profilesへの自動同期対象）
-export async function addPresetField(eventId: string, sectionId: string, presetKey: string) {
+// テンプレートの項目をテンプレートと同じキーで追加する。ブランド共通情報のキーは
+// exhibitor_profilesへの自動同期対象、電源・車両・スタッフのキーは専用CSV出力の対象のため、
+// キーを変えずに追加する。回答はキー単位で保存されるため、同じフォーム内で既に使われている
+// キーは追加できない（画面側でもボタンを出さない）。
+export async function addTemplateField(eventId: string, formId: string, sectionId: string, templateKey: string, fieldKey: string) {
   const { supabase } = await requireOrganizerEvent(eventId);
-  const preset = PRESET_FIELDS[presetKey];
-  if (!preset) throw new Error("不正なプリセットです。");
+  const templateField = findTemplateField(templateKey, fieldKey);
+  if (!templateField) throw new Error("不正な項目です。");
+
+  const { data: formFields } = await supabase
+    .from("form_fields")
+    .select("key, form_sections!inner(form_id)")
+    .eq("form_sections.form_id", formId);
+  if ((formFields ?? []).some((f) => f.key === fieldKey)) {
+    throw new Error(`「${templateField.label}」は既にこのフォームに追加されています。`);
+  }
 
   const { data: fields } = await supabase
     .from("form_fields")
@@ -342,15 +323,28 @@ export async function addPresetField(eventId: string, sectionId: string, presetK
     .limit(1);
   const nextOrder = (fields?.[0]?.order ?? -1) + 1;
 
-  const { error } = await supabase.from("form_fields").insert({
-    form_section_id: sectionId,
-    key: presetKey,
-    label: preset.label,
-    type: preset.type,
-    required: presetKey === "brand_name" || presetKey === "default_contact_email",
-    order: nextOrder,
-  });
+  const { error } = await supabase
+    .from("form_fields")
+    .insert({ ...toFieldRow(templateField), form_section_id: sectionId, order: nextOrder });
   if (error) throw new Error(`項目の追加に失敗しました: ${error.message}`);
+
+  revalidatePath(`/events/${eventId}/form`);
+}
+
+// ドラッグ＆ドロップ後の並び順をまとめて保存する。渡されたIDがこのセクションの項目と
+// 完全に一致する場合のみ反映する（他セクションの項目や欠落を含む不正な並びは無視）。
+export async function reorderFields(eventId: string, sectionId: string, orderedFieldIds: string[]) {
+  const { supabase } = await requireOrganizerEvent(eventId);
+  const { data: fields } = await supabase.from("form_fields").select("id").eq("form_section_id", sectionId);
+  const currentIds = new Set((fields ?? []).map((f) => f.id));
+  if (orderedFieldIds.length !== currentIds.size || !orderedFieldIds.every((id) => currentIds.has(id))) {
+    throw new Error("項目の並びが最新ではありません。ページを再読み込みしてください。");
+  }
+
+  for (const [index, id] of orderedFieldIds.entries()) {
+    const { error } = await supabase.from("form_fields").update({ order: index }).eq("id", id);
+    if (error) throw new Error(`並び替えの保存に失敗しました: ${error.message}`);
+  }
 
   revalidatePath(`/events/${eventId}/form`);
 }
