@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
+import { renderNotificationEmail } from "@/lib/notifications/emailTemplates";
 import {
   createAttachmentUploadUrl,
   deleteAttachment,
@@ -133,6 +134,37 @@ export default async function AnnouncementDetailPage({
   );
 
   const failedCount = (deliveries ?? []).filter((d) => d.status === "failed").length;
+
+  // 公開前は「送信されるメール」のプレビュー（組織のメール文面設定を反映）、公開後は実際に
+  // 送信した文面（最新の1通。出展者ごとの違いはブランド名とリンクのみ）を表示する。
+  let mailPreview: { heading: string; subject: string; body: string } | null = null;
+  if (version.status === "draft") {
+    const { data: templateRows } = await supabase
+      .from("organization_email_templates")
+      .select("template_type, subject, body")
+      .eq("organization_id", context!.organizationId);
+    const rendered = renderNotificationEmail({
+      templateType: "announcement_publish",
+      overrides: Object.fromEntries((templateRows ?? []).map((r) => [r.template_type, { subject: r.subject, body: r.body }])),
+      vars: { イベント名: event.name, ブランド名: "（出展者のブランド名）", 主催者名: context!.organizationName, 資料タイトル: version.title },
+      link: "（出展者ごとの確認用リンク）",
+      announcementBody: version.body,
+    });
+    mailPreview = { heading: "公開時に送信されるメール（プレビュー）", subject: rendered.subject, body: rendered.text };
+  } else {
+    const { data: sent } = await supabase
+      .from("notification_deliveries")
+      .select("sent_subject, sent_body")
+      .eq("related_entity_type", "announcement_version")
+      .eq("related_entity_id", announcementVersionId)
+      .not("sent_subject", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (sent?.sent_subject) {
+      mailPreview = { heading: "送信したメールの文面（最新の1通）", subject: sent.sent_subject, body: sent.sent_body ?? "" };
+    }
+  }
   const createUploadUrlWithIds = createAttachmentUploadUrl.bind(null, eventId);
   const finalizeUploadWithIds = finalizeAttachmentUpload.bind(null, eventId, announcementVersionId);
   const deleteAttachmentWithIds = deleteAttachment.bind(null, eventId, announcementVersionId);
@@ -230,6 +262,16 @@ export default async function AnnouncementDetailPage({
             currentParticipationIds={audienceParticipationIds ?? []}
             updateAction={updateAnnouncementAudience.bind(null, eventId, announcementVersionId)}
           />
+          {mailPreview && (
+            <details className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+              <summary className="cursor-pointer text-muted-foreground">{mailPreview.heading}</summary>
+              <p className="mt-2 font-medium">件名：{mailPreview.subject}</p>
+              <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{mailPreview.body}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                文面は「設定」＞「メール文面」で変更できます。
+              </p>
+            </details>
+          )}
         </CardContent>
       </Card>
 

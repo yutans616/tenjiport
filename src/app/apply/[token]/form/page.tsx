@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SubmissionForm } from "./SubmissionForm";
 import { resolveExhibitorProfile } from "./actions";
+import { buildPrefillAnswers } from "@/lib/forms/prefillFromHistory";
 import { SubmitButton } from "@/components/organizer/submit-button";
 
 export default async function ApplyFormPage({
@@ -98,6 +99,28 @@ export default async function ApplyFormPage({
     );
   }
 
+  // このイベントで初めてフォームを開いた（初版の下書きが空）場合だけ、プロフィールと
+  // 同じ主催者の過去イベントでの提出内容から初期値を入れる。保存して以降は通常の自動保存に任せる。
+  // 案内は初回提出までの間（再読み込み後も）引き継ぎ元がある限り表示する。
+  let initialAnswers = (draft.data_snapshot_json as Record<string, unknown>) ?? {};
+  let prefilled = false;
+  if (draft.version_number === 1) {
+    const prefill = await buildPrefillAnswers({
+      participationId: draft.participation_id,
+      fields: (sections ?? []).flatMap((s) => s.form_fields ?? []),
+    });
+    prefilled = Object.keys(prefill).length > 0;
+    if (prefilled && Object.keys(initialAnswers).length === 0) {
+      const { error: prefillError } = await supabase
+        .from("submission_versions")
+        .update({ data_snapshot_json: prefill })
+        .eq("id", draft.submission_version_id)
+        .eq("status", "draft");
+      if (prefillError) prefilled = false;
+      else initialAnswers = prefill;
+    }
+  }
+
   const { data: availabilityRows } = await supabase.rpc("get_choice_availability", { p_event_id: event.id });
   const availability = (
     (availabilityRows ?? []) as { field_key: string; choice_label: string; capacity: number; taken_count: number }[]
@@ -149,10 +172,15 @@ export default async function ApplyFormPage({
           <p className="mt-1 whitespace-pre-wrap">{pendingRevisionComment}</p>
         </div>
       )}
+      {prefilled && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          以前ご登録いただいた内容を入力済みにしています。変更がないかご確認のうえ提出してください（ファイル・ブース・オプション品は改めて選択してください）。
+        </div>
+      )}
       <SubmissionForm
         submissionVersionId={draft.submission_version_id}
         sections={sections ?? []}
-        initialAnswers={(draft.data_snapshot_json as Record<string, unknown>) ?? {}}
+        initialAnswers={initialAnswers}
         initialQuantities={(draft.quantities_json as Record<string, Record<string, number>>) ?? {}}
         doneHref={`/apply/${token}/done`}
         availability={availability}

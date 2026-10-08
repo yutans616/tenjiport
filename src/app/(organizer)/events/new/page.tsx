@@ -7,15 +7,17 @@ import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 
-export default async function NewEventPage() {
+export default async function NewEventPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+  const { project: projectParam } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
   // プラン未選択（契約なし）の組織はまずプランを選んでもらう。運営者アカウント
   // （billing_exempt）は契約なしで作成でき、課金もされない（createEventと同じ扱い）。
   const supabase = await createClient();
-  const [{ data: org }, { data: contract }] = await Promise.all([
+  const [{ data: org }, { data: contract }, { data: projects }] = await Promise.all([
     supabase.from("organizer_organizations").select("billing_exempt").eq("id", context.organizationId).single(),
     supabase
       .from("service_contracts")
@@ -23,7 +25,13 @@ export default async function NewEventPage() {
       .eq("organizer_organization_id", context.organizationId)
       .eq("status", "active")
       .maybeSingle(),
+    supabase
+      .from("projects")
+      .select("id, name")
+      .eq("organization_id", context.organizationId)
+      .order("sort_order", { ascending: true }),
   ]);
+  const defaultProjectId = (projects ?? []).some((p) => p.id === projectParam) ? projectParam : "";
   const billingExempt = org?.billing_exempt === true;
   if (!contract && !billingExempt) redirect("/plan");
 
@@ -61,6 +69,19 @@ export default async function NewEventPage() {
               <Label htmlFor="venue">会場</Label>
               <Input id="venue" name="venue" />
             </div>
+            {(projects ?? []).length > 0 && (
+              <div className="grid gap-1.5">
+                <Label htmlFor="project_id">プロジェクト</Label>
+                <NativeSelect id="project_id" name="project_id" defaultValue={defaultProjectId}>
+                  <option value="">未分類</option>
+                  {(projects ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label htmlFor="start_date">開始日</Label>

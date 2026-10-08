@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { updateBankAccountAction, updateOrganizationProfileAction } from "./actions";
@@ -51,6 +53,18 @@ export default async function SettingsPage({
           ここで登録した銀行口座は、出展者向けの請求書ページに振込先として表示されます。
         </p>
       </div>
+
+      <Link href="/settings/email-templates">
+        <Card className="transition-colors hover:border-primary/40 hover:bg-accent/40">
+          <CardContent className="flex items-center justify-between gap-3 py-4">
+            <div>
+              <p className="font-medium">メール文面</p>
+              <p className="text-xs text-muted-foreground">出展者へ送る通知メール（資料・請求書・修正依頼）の件名・本文・署名を変更します。</p>
+            </div>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </Link>
 
       <form action={updateOrganizationProfileAction} className="flex flex-col gap-6">
         <Card>

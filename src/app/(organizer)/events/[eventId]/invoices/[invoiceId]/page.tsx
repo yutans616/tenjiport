@@ -76,7 +76,7 @@ export default async function InvoiceDetailPage({
 
   const { data: deliveries } = await supabase
     .from("notification_deliveries")
-    .select("id, template_type, status, error_message, created_at")
+    .select("id, template_type, status, error_message, created_at, sent_subject, sent_body")
     .eq("related_entity_type", "exhibitor_invoice")
     .eq("related_entity_id", invoiceId)
     .order("created_at", { ascending: false });
@@ -238,6 +238,13 @@ export default async function InvoiceDetailPage({
                     </div>
                     {d.status === "failed" && d.error_message && (
                       <p className="text-xs text-destructive">{d.error_message}</p>
+                    )}
+                    {d.sent_subject && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-muted-foreground">送信した文面を見る</summary>
+                        <p className="mt-1 font-medium">件名：{d.sent_subject}</p>
+                        <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{d.sent_body}</p>
+                      </details>
                     )}
                   </div>
                 );

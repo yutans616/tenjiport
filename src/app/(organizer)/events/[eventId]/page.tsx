@@ -77,12 +77,18 @@ export default async function EventDetailPage({
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, status, venue, start_date, end_date, spam_guard_config")
+    .select("id, name, status, venue, start_date, end_date, spam_guard_config, project_id")
     .eq("id", eventId)
     .eq("organizer_organization_id", context!.organizationId)
     .single();
 
   if (!event) notFound();
+
+  const { data: projects } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("organization_id", context!.organizationId)
+    .order("sort_order", { ascending: true });
 
   // 1. 提出状況の内訳（出展者数・パイプライン）。
   const { data: participations } = await supabase
@@ -268,6 +274,19 @@ export default async function EventDetailPage({
                 <Label htmlFor="venue">会場</Label>
                 <Input id="venue" name="venue" defaultValue={event.venue ?? ""} />
               </div>
+              {(projects ?? []).length > 0 && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="project_id">プロジェクト</Label>
+                  <NativeSelect key={event.project_id ?? "none"} id="project_id" name="project_id" defaultValue={event.project_id ?? ""}>
+                    <option value="">未分類</option>
+                    {(projects ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label htmlFor="start_date">開始日</Label>

@@ -184,6 +184,8 @@ export async function deleteEphemeralDemoSession(token: string): Promise<void> {
 
   await db.from("organizer_memberships").delete().eq("organization_id", organizationId);
   await db.from("organizer_bank_accounts").delete().eq("organization_id", organizationId);
+  await db.from("projects").delete().eq("organization_id", organizationId);
+  await db.from("organization_email_templates").delete().eq("organization_id", organizationId);
   await db.from("demo_sessions").delete().eq("token", token);
 
   const { error: orgDeleteError } = await db.from("organizer_organizations").delete().eq("id", organizationId);

@@ -36,7 +36,10 @@ function parseFormFields(formData: FormData) {
     throw new Error(`終了日は本日から${MAX_END_DATE_MONTHS_AHEAD}ヶ月以内で設定してください。`);
   }
 
-  return { name, venue, start_date: startDate, end_date: endDate };
+  // プロジェクトが別組織のものでないかはDBのトリガーで検査する（migrations/0072）。
+  const projectId = String(formData.get("project_id") ?? "").trim() || null;
+
+  return { name, venue, start_date: startDate, end_date: endDate, project_id: projectId };
 }
 
 export async function createEvent(formData: FormData) {
