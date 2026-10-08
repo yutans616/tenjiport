@@ -21,6 +21,10 @@ function resolveMessage(done: string, count?: string, skipped?: string): string 
     const skippedNote = s > 0 ? `（${s}件は未請求の品目が無い等のため発行しませんでした）` : "";
     return n > 0 ? `${n}件の請求書を発行しました。${skippedNote}` : `請求書は発行されませんでした。${skippedNote}`;
   }
+  if (done === "exhibitors_invited") {
+    const n = Number(count ?? 0);
+    return n > 0 ? `${n}件の出展者を招待し、出展のご案内を送りました。` : "招待できる出展者がいなかったため、招待は行われませんでした。";
+  }
   if (done === "bulk_reminded") {
     const n = Number(count ?? 0);
     return n > 0 ? `未入金の${n}件に請求書を再送しました。` : "未入金の請求書がないため、再送は行われませんでした。";

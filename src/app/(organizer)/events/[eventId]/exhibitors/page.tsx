@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Download } from "lucide-react";
+import { Download, UserPlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { loadBillingStates } from "@/lib/billing/exhibitorBilling";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { Button } from "@/components/ui/button";
+import { SuccessBanner } from "@/components/organizer/success-banner";
 import { ExhibitorTable, type ExhibitorRow } from "./ExhibitorTable";
 
 export default async function ExhibitorsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ done?: string; count?: string }>;
 }) {
   const { eventId } = await params;
+  const { done, count } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
 
@@ -160,17 +164,31 @@ export default async function ExhibitorsPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <SuccessBanner done={done} count={count} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-muted-foreground">出展者一覧</h2>
-        <Button
-          variant="outline"
-          render={
-            <Link href={`/events/${eventId}/export`}>
-              <Download />
-              全件CSVでダウンロード
-            </Link>
-          }
-        />
+        <div className="flex gap-2">
+          {(context.role === "owner" || context.role === "admin") && (
+            <Button
+              variant="outline"
+              render={
+                <Link href={`/events/${eventId}/exhibitors/invite`}>
+                  <UserPlus />
+                  過去のイベントから招待
+                </Link>
+              }
+            />
+          )}
+          <Button
+            variant="outline"
+            render={
+              <Link href={`/events/${eventId}/export`}>
+                <Download />
+                全件CSVでダウンロード
+              </Link>
+            }
+          />
+        </div>
       </div>
 
       <ExhibitorTable eventId={eventId} rows={rows} formColumns={formColumns} />

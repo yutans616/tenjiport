@@ -66,7 +66,7 @@ export async function processPendingNotifications(limit = 20): Promise<ProcessRe
 
       const { data: participation } = await serviceClient
         .from("event_participations")
-        .select("exhibitor_profiles(brand_name), events(name, organizer_organization_id, organizer_organizations(name))")
+        .select("exhibitor_profiles(brand_name), events(name, venue, start_date, end_date, organizer_organization_id, organizer_organizations(name))")
         .eq("id", item.event_participation_id)
         .single();
       const profile = Array.isArray(participation?.exhibitor_profiles) ? participation.exhibitor_profiles[0] : participation?.exhibitor_profiles;
@@ -93,6 +93,9 @@ export async function processPendingNotifications(limit = 20): Promise<ProcessRe
       } else if (item.related_entity_type === "revision_request") {
         const { data: revision } = await serviceClient.from("revision_requests").select("comment").eq("id", item.related_entity_id).maybeSingle();
         vars["修正依頼内容"] = revision?.comment ?? "";
+      } else if (item.related_entity_type === "event_participation") {
+        vars["開催期間"] = event?.start_date ? `${event.start_date}〜${event.end_date ?? ""}` : (event?.end_date ?? "未定");
+        vars["会場"] = event?.venue ?? "未定";
       }
 
       const organizationId = event?.organizer_organization_id as string | undefined;
@@ -103,7 +106,7 @@ export async function processPendingNotifications(limit = 20): Promise<ProcessRe
       const nextPath =
         item.related_entity_type === "exhibitor_invoice"
           ? `/apply/${item.public_form_token}/invoices/${item.related_entity_id}`
-          : item.related_entity_type === "revision_request"
+          : item.related_entity_type === "revision_request" || item.related_entity_type === "event_participation"
             ? `/apply/${item.public_form_token}/form`
             : `/apply/${item.public_form_token}/announcements/${item.related_entity_id}`;
       const link = await createExhibitorAccessLink(item.recipient_email, nextPath);

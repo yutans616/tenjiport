@@ -9,6 +9,7 @@ export const EMAIL_TEMPLATE_TYPES = [
   "invoice_reminder",
   "revision_request",
   "revision_request_resend",
+  "participation_invite",
 ] as const;
 export type EmailTemplateType = (typeof EMAIL_TEMPLATE_TYPES)[number];
 
@@ -19,6 +20,7 @@ export const EMAIL_TEMPLATE_LABEL: Record<EmailTemplateType, string> = {
   invoice_reminder: "請求書の再送・督促",
   revision_request: "修正依頼",
   revision_request_resend: "修正依頼の再送",
+  participation_invite: "出展のご案内（過去の出展者への招待）",
 };
 
 export const EMAIL_VARIABLES: Record<EmailTemplateType, string[]> = {
@@ -28,6 +30,7 @@ export const EMAIL_VARIABLES: Record<EmailTemplateType, string[]> = {
   invoice_reminder: ["イベント名", "ブランド名", "主催者名", "請求金額", "支払期限"],
   revision_request: ["イベント名", "ブランド名", "主催者名", "修正依頼内容"],
   revision_request_resend: ["イベント名", "ブランド名", "主催者名", "修正依頼内容"],
+  participation_invite: ["イベント名", "ブランド名", "主催者名", "開催期間", "会場"],
 };
 
 export const DEFAULT_EMAIL_TEMPLATES: Record<EmailTemplateType, { subject: string; body: string }> = {
@@ -54,6 +57,10 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<EmailTemplateType, { subject: strin
   revision_request_resend: {
     subject: "【再送・{{イベント名}}】入力内容の修正をお願いします",
     body: "{{ブランド名}} ご担当者様\n\n{{イベント名}}にご提出いただいた内容について、以下の修正をお願いしております。\n\n{{修正依頼内容}}\n\n下記リンクから修正のうえ、再度ご提出ください。",
+  },
+  participation_invite: {
+    subject: "【{{イベント名}}】出展のご案内",
+    body: "{{ブランド名}} ご担当者様\n\nいつもお世話になっております。\n{{イベント名}}（{{開催期間}}・{{会場}}）の出展者募集をご案内いたします。\n\n前回ご登録いただいた内容を入力済みにしておりますので、下記リンクから内容をご確認のうえ、ブース・オプション品等をお選びいただきご提出ください。",
   },
 };
 
@@ -113,4 +120,6 @@ export const SAMPLE_VARIABLES: Record<string, string> = {
   請求金額: "¥33,000",
   支払期限: "2026-11-30",
   修正依頼内容: "電話番号が間違っています。修正をお願いいたします。",
+  開催期間: "2026-11-07〜2026-11-09",
+  会場: "東京ビッグサイト",
 };

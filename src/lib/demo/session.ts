@@ -37,7 +37,9 @@ export async function getDemoEventForOrganization(organizationId: string): Promi
     .select("id, public_form_token")
     .eq("organizer_organization_id", organizationId)
     .eq("status", "open")
-    .order("created_at", { ascending: false })
+    // サンプル展示会はシード・リセット時に最初に作られる。訪問者がデモ中に作ったイベントへ
+    // 「出展者側に切り替える」が飛ばないよう、最も古いイベントを選ぶ。
+    .order("created_at", { ascending: true })
     .limit(1)
     .single();
   if (eventError || !event) {
