@@ -82,7 +82,7 @@ export default async function ProjectsPage() {
               </div>
             ))}
             <form action={createProject} className="flex gap-2">
-              <Input name="name" required maxLength={100} placeholder="例：Eight、Bill One" className="flex-1" aria-label="新しいプロジェクト名" />
+              <Input name="name" required maxLength={100} placeholder="例：プロジェクトA、プロジェクトB" className="flex-1" aria-label="新しいプロジェクト名" />
               <SubmitButton pendingText="追加中...">追加</SubmitButton>
             </form>
             <p className="text-xs text-muted-foreground">
