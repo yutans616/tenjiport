@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { extractPricedSelections, isPricedField } from "@/lib/forms/pricedSelections";
+import { formatLineItemsSummary, loadBillingStates, sumLineItems } from "@/lib/billing/exhibitorBilling";
 
 const FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"];
 
@@ -29,7 +30,8 @@ function yen(n: number) {
 }
 
 // 料金が発生するデータを出展者ごとに1行で出力する：価格付きの選択項目（コマ・オプション品等）の
-// 選択内容と小計、フォーム上の確定金額、発行済み請求書の金額・入金状況、未請求額。
+// 選択内容と小計、フォーム上の確定金額、発行済み請求書（複数可）の金額・入金状況、未請求の品目と額
+// （未請求は一括発行・追加請求と同じ品目単位の計算）。
 export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   const context = await getOrganizerContext();
@@ -100,6 +102,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
     .select("event_participation_id, invoice_number, amount_yen, due_date, payment_status, paid_at, invoice_ack_status, created_at")
     .in("event_participation_id", participationIds)
     .order("created_at", { ascending: true });
+  const { states: billingStates } = await loadBillingStates(supabase, eventId, participations ?? []);
+
   const invoicesByParticipation = new Map<string, NonNullable<typeof invoices>>();
   for (const inv of invoices ?? []) {
     const list = invoicesByParticipation.get(inv.event_participation_id) ?? [];
@@ -117,6 +121,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
     "確定金額（フォーム計算）",
     "請求書番号",
     "請求額合計",
+    "未請求の品目",
     "未請求額",
     "入金済み額",
     "未入金額",
@@ -142,6 +147,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
     const invoicedTotal = participantInvoices.reduce((sum, i) => sum + i.amount_yen, 0);
     const paidTotal = participantInvoices.filter((i) => i.payment_status === "paid").reduce((sum, i) => sum + i.amount_yen, 0);
     const resolvedPrice = p.resolved_price_yen;
+    const billing = billingStates.get(p.id);
     const join = (values: (string | null | undefined)[]) => values.filter(Boolean).join("、");
 
     return [
@@ -154,7 +160,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
       resolvedPrice ?? "",
       join(participantInvoices.map((i) => i.invoice_number)),
       participantInvoices.length > 0 ? invoicedTotal : "",
-      resolvedPrice != null && p.status !== "cancelled" ? resolvedPrice - invoicedTotal : "",
+      p.status !== "cancelled" && billing ? formatLineItemsSummary(billing.unbilledItems, 99) : "",
+      p.status !== "cancelled" && billing && billing.currentItems.length > 0 ? sumLineItems(billing.unbilledItems) : "",
       participantInvoices.length > 0 ? paidTotal : "",
       participantInvoices.length > 0 ? invoicedTotal - paidTotal : "",
       join(participantInvoices.map((i) => i.due_date)),

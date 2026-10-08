@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { confirmInvoiceAction } from "../actions";
+import { formatYen, parseLineItems } from "@/lib/billing/exhibitorBilling";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +21,11 @@ export default async function ExhibitorInvoiceDetailPage({
 
   const { data: invoice } = await supabase
     .from("exhibitor_invoices")
-    .select("id, invoice_number, invoice_file_id, amount_yen, due_date, invoice_ack_status, payment_status, paid_at")
+    .select("id, invoice_number, invoice_file_id, amount_yen, due_date, invoice_ack_status, payment_status, paid_at, line_items_json")
     .eq("id", invoiceId)
     .single();
   if (!invoice) notFound();
+  const lineItems = parseLineItems(invoice.line_items_json);
 
   let invoiceFilename: string | null = null;
   if (invoice.invoice_file_id) {
@@ -65,6 +67,23 @@ export default async function ExhibitorInvoiceDetailPage({
               <dd>{invoice.due_date ?? "-"}</dd>
             </div>
           </dl>
+
+          {lineItems && lineItems.length > 0 && (
+            <div className="rounded-lg border px-3 py-2 text-sm">
+              <p className="mb-1 text-xs text-muted-foreground">内訳</p>
+              <ul className="flex flex-col gap-1">
+                {lineItems.map((item, i) => (
+                  <li key={i} className="flex justify-between gap-2">
+                    <span>
+                      {item.label}
+                      {item.quantity > 1 && <span className="text-muted-foreground"> ×{item.quantity}</span>}
+                    </span>
+                    <span>{formatYen(item.price_yen * item.quantity)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {invoice.invoice_file_id && (
             <a

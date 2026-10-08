@@ -1,6 +1,7 @@
 import path from "node:path";
 import PDFDocument from "pdfkit";
-import type { InvoiceLineItem } from "./resolveInvoiceLineItems";
+
+export type InvoiceLineItem = { label: string; priceYen: number; quantity: number };
 
 const FONT_REGULAR = path.join(process.cwd(), "src/lib/pdf/fonts/NotoSansJP-Regular.ttf");
 const FONT_BOLD = path.join(process.cwd(), "src/lib/pdf/fonts/NotoSansJP-Bold.ttf");
@@ -31,7 +32,7 @@ export type InvoicePdfData = {
 };
 
 function formatYen(n: number) {
-  return `¥${n.toLocaleString("ja-JP")}`;
+  return `${n < 0 ? "-" : ""}¥${Math.abs(n).toLocaleString("ja-JP")}`;
 }
 
 function formatDate(d: Date) {

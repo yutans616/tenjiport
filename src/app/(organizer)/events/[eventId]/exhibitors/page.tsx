@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { loadBillingStates } from "@/lib/billing/exhibitorBilling";
 import { getOrganizerContext } from "@/lib/organizer/context";
 import { Button } from "@/components/ui/button";
 import { ExhibitorTable, type ExhibitorRow } from "./ExhibitorTable";
@@ -72,9 +73,10 @@ export default async function ExhibitorsPage({
     }
   }
 
-  // 請求書ステータス：参加者ごとに、いずれか未入金があれば「未入金」、全て入金済みなら「入金済み」、
-  // 請求書が無ければ「未発行」として要約する。
-  const invoiceStatusByParticipation = new Map<string, "unpaid" | "paid">();
+  // 請求書ステータス：参加者ごとに、いずれか未入金があれば「未入金」、発行済みの請求書は
+  // すべて入金済みだが未請求の品目（後から選ばれたオプション品等）が残っていれば「未請求あり」、
+  // それ以外で全て入金済みなら「入金済み」、請求書が無ければ「未発行」として要約する。
+  const invoiceStatusByParticipation = new Map<string, "unpaid" | "unbilled" | "paid">();
   if (participationIds.length > 0) {
     const { data: invoices } = await supabase
       .from("exhibitor_invoices")
@@ -86,6 +88,12 @@ export default async function ExhibitorsPage({
         invoiceStatusByParticipation.set(inv.event_participation_id, "unpaid");
       } else if (current !== "unpaid") {
         invoiceStatusByParticipation.set(inv.event_participation_id, "paid");
+      }
+    }
+    const { states: billingStates } = await loadBillingStates(supabase, eventId, participations ?? []);
+    for (const [pid, status] of invoiceStatusByParticipation) {
+      if (status === "paid" && (billingStates.get(pid)?.unbilledItems.length ?? 0) > 0) {
+        invoiceStatusByParticipation.set(pid, "unbilled");
       }
     }
   }

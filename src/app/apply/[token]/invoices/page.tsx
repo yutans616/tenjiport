@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { formatLineItemsSummary, parseLineItems } from "@/lib/billing/exhibitorBilling";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -41,7 +42,7 @@ export default async function ExhibitorInvoicesPage({
   const { data: invoices } = participationIds.length
     ? await supabase
         .from("exhibitor_invoices")
-        .select("id, event_participation_id, amount_yen, due_date, invoice_ack_status, payment_status")
+        .select("id, invoice_number, event_participation_id, amount_yen, due_date, invoice_ack_status, payment_status, line_items_json")
         .in("event_participation_id", participationIds)
         .order("created_at", { ascending: false })
     : { data: [] };
@@ -67,7 +68,16 @@ export default async function ExhibitorInvoicesPage({
                     {showBrandLabel && (
                       <p className="text-xs text-muted-foreground">{brandNameByParticipation.get(inv.event_participation_id)}</p>
                     )}
-                    <p className="font-medium">¥{inv.amount_yen.toLocaleString("ja-JP")}</p>
+                    <p className="font-medium">
+                      ¥{inv.amount_yen.toLocaleString("ja-JP")}
+                      {inv.invoice_number && <span className="ml-2 text-xs font-normal text-muted-foreground">{inv.invoice_number}</span>}
+                    </p>
+                    {(() => {
+                      const items = parseLineItems(inv.line_items_json);
+                      return items && items.length > 0 ? (
+                        <p className="text-xs text-muted-foreground">{formatLineItemsSummary(items)}</p>
+                      ) : null;
+                    })()}
                     <p className="text-sm text-muted-foreground">{inv.due_date ? `支払期限: ${inv.due_date}` : ""}</p>
                   </div>
                   <div className="flex gap-2">

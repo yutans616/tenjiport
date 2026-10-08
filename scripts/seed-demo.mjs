@@ -212,26 +212,57 @@ async function main() {
     .select("id")
     .single();
   if (sectionError) throw sectionError;
-  const fieldDefs = [
-    { key: "booth_size", label: "希望ブースサイズ", type: "single_select", required: true, order: 0, options_json: ["S", "M", "L"] },
-    { key: "power_needed", label: "電源利用の希望", type: "checkbox", required: false, order: 1 },
-    { key: "notes", label: "備考", type: "long_text", required: false, order: 2 },
+  const { data: optionSection, error: optionSectionError } = await db
+    .from("form_sections")
+    .insert({ form_id: form.id, title: "オプション品", order: 1 })
+    .select("id")
+    .single();
+  if (optionSectionError) throw optionSectionError;
+  const BOOTH_CHOICES = [
+    { label: "S（2m×2m）", price_yen: 20000, capacity: null },
+    { label: "M（3m×3m）", price_yen: 30000, capacity: null },
+    { label: "L（3m×6m）", price_yen: 55000, capacity: null },
   ];
-  const { error: fieldsError } = await db
-    .from("form_fields")
-    .insert(fieldDefs.map((f) => ({ form_section_id: section.id, ...f })));
+  const DEMO_BOOTH = BOOTH_CHOICES[1];
+  const OPTION_CHOICES = [
+    { label: "追加電源（100V・1kW）", price_yen: 11000, capacity: null },
+    { label: "長机（W1800×D450）", price_yen: 2200, capacity: null },
+    { label: "パイプ椅子", price_yen: 550, capacity: null },
+    { label: "スポットライト", price_yen: 3300, capacity: null },
+  ];
+  const optionsTotal = (options) =>
+    Object.entries(options ?? {}).reduce(
+      (sum, [label, qty]) => sum + (OPTION_CHOICES.find((c) => c.label === label)?.price_yen ?? 0) * qty,
+      0,
+    );
+  const fieldDefs = [
+    { form_section_id: section.id, key: "booth_size", label: "希望ブースサイズ", type: "single_select", required: true, order: 0, options_json: { choices: BOOTH_CHOICES } },
+    { form_section_id: section.id, key: "power_needed", label: "電源利用の希望", type: "checkbox", required: false, order: 1 },
+    { form_section_id: section.id, key: "notes", label: "備考", type: "long_text", required: false, order: 2 },
+    {
+      form_section_id: optionSection.id,
+      key: "option_items",
+      label: "オプション品",
+      type: "multi_select",
+      required: false,
+      help_text: "必要なものを選択し、数量を入力してください。",
+      order: 0,
+      options_json: { choices: OPTION_CHOICES },
+    },
+  ];
+  const { error: fieldsError } = await db.from("form_fields").insert(fieldDefs);
   if (fieldsError) throw fieldsError;
 
   const exhibitorDefs = [
     { name: "サンプル物産株式会社", submitted: true, ackBaseline: true, paid: false, noInvoiceYet: true },
-    { name: "テンジ工房合同会社", submitted: true, ackBaseline: true, paid: false, noInvoiceYet: true },
-    { name: "有限会社みらいクラフト", submitted: true, ackBaseline: true, paid: true },
+    { name: "テンジ工房合同会社", submitted: true, ackBaseline: true, paid: false, noInvoiceYet: true, options: { "追加電源（100V・1kW）": 1 } },
+    { name: "有限会社みらいクラフト", submitted: true, ackBaseline: true, paid: true, options: { "長机（W1800×D450）": 1, パイプ椅子: 2 } },
     { name: "株式会社ノーザンベイク", submitted: true, ackBaseline: true, paid: true },
     { name: "さくらフーズ株式会社", submitted: true, ackBaseline: true, paid: true },
     { name: "株式会社グリーンリーフ", submitted: true, ackBaseline: true, paid: true },
     { name: "一般社団法人てくてくマルシェ", submitted: true, ackBaseline: true, paid: true },
     { name: "株式会社ブルーウェーブ", submitted: true, ackBaseline: false, paid: true },
-    { name: "有限会社ことのは雑貨店", submitted: true, ackBaseline: false, paid: false },
+    { name: "有限会社ことのは雑貨店", submitted: true, ackBaseline: false, paid: false, options: { スポットライト: 2 } },
     { name: "株式会社ソライロデザイン", submitted: false, ackBaseline: false, paid: false, featured: true },
     { name: "なでしこ手仕事舎", submitted: false, ackBaseline: false, paid: false },
     { name: "株式会社ヒノデ商会", submitted: false, ackBaseline: false, paid: false },
@@ -270,7 +301,7 @@ async function main() {
         status: def.submitted ? "confirmed" : "invited",
         first_submitted_at: def.submitted ? new Date().toISOString() : null,
         is_billable: true,
-        resolved_price_yen: def.noInvoiceYet ? 30000 : null,
+        resolved_price_yen: def.submitted ? DEMO_BOOTH.price_yen + optionsTotal(def.options) : null,
       })
       .select("id")
       .single();
@@ -282,7 +313,13 @@ async function main() {
         form_id: form.id,
         version_number: 1,
         status: "confirmed",
-        data_snapshot_json: { booth_size: "M", power_needed: true, notes: "デモ用のサンプル回答です。" },
+        data_snapshot_json: {
+          booth_size: DEMO_BOOTH.label,
+          power_needed: true,
+          notes: "デモ用のサンプル回答です。",
+          ...(def.options ? { option_items: Object.keys(def.options) } : {}),
+        },
+        quantities_json: def.options ? { option_items: def.options } : {},
         submitted_at: new Date().toISOString(),
         confirmed_at: new Date().toISOString(),
         confirmed_by_user_id: ownerUserId,
@@ -294,7 +331,8 @@ async function main() {
       const { error: invoiceError } = await db.from("exhibitor_invoices").insert({
         event_participation_id: participation.id,
         organizer_organization_id: orgId,
-        amount_yen: 30000,
+        amount_yen: DEMO_BOOTH.price_yen,
+        line_items_json: [{ field_key: "booth_size", label: DEMO_BOOTH.label, price_yen: DEMO_BOOTH.price_yen, quantity: 1 }],
         due_date: futureDate(20),
         invoice_ack_status: def.paid ? "confirmed" : "unconfirmed",
         invoice_ack_at: def.paid ? new Date().toISOString() : null,

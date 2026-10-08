@@ -19,7 +19,7 @@ export type ExhibitorRow = {
   companyName: string;
   status: string;
   createdAt: string;
-  invoiceStatus: "none" | "unpaid" | "paid";
+  invoiceStatus: "none" | "unpaid" | "unbilled" | "paid";
   announcementTotal: number;
   announcementAcked: number;
   resolvedPriceYen: number | null;
@@ -45,6 +45,7 @@ const STATUS_LABEL: Record<string, { label: string; variant: "default" | "second
 const INVOICE_LABEL: Record<ExhibitorRow["invoiceStatus"], { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   none: { label: "未発行", variant: "outline" },
   unpaid: { label: "未入金", variant: "destructive" },
+  unbilled: { label: "未請求あり", variant: "outline" },
   paid: { label: "入金済み", variant: "secondary" },
 };
 

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SuccessBanner } from "@/components/organizer/success-banner";
 import Link from "next/link";
+import { formatYen, loadBillingStates, parseLineItems, sumLineItems } from "@/lib/billing/exhibitorBilling";
 
 const DELIVERY_TEMPLATE_LABEL: Record<string, string> = {
   invoice_publish: "請求書発行",
@@ -45,7 +46,7 @@ export default async function InvoiceDetailPage({
   const { data: invoice } = await supabase
     .from("exhibitor_invoices")
     .select(
-      "id, invoice_number, event_participation_id, invoice_file_id, amount_yen, due_date, invoice_ack_status, invoice_ack_at, payment_status, paid_at, organizer_internal_memo, event_participations(resolved_price_yen, exhibitor_profiles(brand_name, company_name)), file_assets(filename)",
+      "id, invoice_number, event_participation_id, invoice_file_id, amount_yen, due_date, invoice_ack_status, invoice_ack_at, payment_status, paid_at, organizer_internal_memo, line_items_json, event_participations(id, resolved_price_yen, exhibitor_profiles(brand_name, company_name)), file_assets(filename)",
     )
     .eq("id", invoiceId)
     .single();
@@ -61,8 +62,11 @@ export default async function InvoiceDetailPage({
       ? participation.exhibitor_profiles[0]
       : participation.exhibitor_profiles
     : null;
-  const priceMismatch =
-    participation?.resolved_price_yen != null && participation.resolved_price_yen !== invoice.amount_yen;
+  const lineItems = parseLineItems(invoice.line_items_json);
+  const billing = participation
+    ? (await loadBillingStates(supabase, eventId, [participation])).states.get(participation.id)
+    : undefined;
+  const unbilledYen = billing ? sumLineItems(billing.unbilledItems) : 0;
 
   const { data: changeLogs } = await supabase
     .from("invoice_change_logs")
@@ -106,10 +110,28 @@ export default async function InvoiceDetailPage({
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {invoice.invoice_number && <p className="text-xs text-muted-foreground">請求書番号: {invoice.invoice_number}</p>}
-          {priceMismatch && participation && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-400">
-              フォームの選択内容による金額（¥{participation.resolved_price_yen!.toLocaleString("ja-JP")}）と、この請求書の金額（¥
-              {invoice.amount_yen.toLocaleString("ja-JP")}）が一致しません。出展者が再提出で選択内容を変更した可能性があります。
+          {lineItems && lineItems.length > 0 && (
+            <ul className="flex flex-col gap-1 rounded-lg border px-3 py-2 text-sm">
+              {lineItems.map((item, i) => (
+                <li key={i} className="flex justify-between gap-2">
+                  <span>
+                    {item.label}
+                    {item.quantity > 1 && <span className="text-muted-foreground"> ×{item.quantity}</span>}
+                  </span>
+                  <span>{formatYen(item.price_yen * item.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {unbilledYen > 0 && participation && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-400">
+              <span>この出展者にはまだ請求していない品目があります（¥{unbilledYen.toLocaleString("ja-JP")}）。</span>
+              <Link
+                href={`/events/${eventId}/invoices/new?participation=${participation.id}`}
+                className="font-medium underline underline-offset-4"
+              >
+                追加請求を作成
+              </Link>
             </div>
           )}
           {invoice.payment_status === "unpaid" && (
@@ -144,6 +166,9 @@ export default async function InvoiceDetailPage({
               <Label htmlFor="memo">主催者内部メモ</Label>
               <Input id="memo" name="memo" defaultValue={invoice.organizer_internal_memo ?? ""} />
             </div>
+            <p className="text-xs text-muted-foreground">
+              金額・支払期限を訂正すると、自動生成した請求書PDFも新しい内容で作り直されます（出展者への再通知は行われません。必要に応じて「請求書を再送する」を使ってください）。金額の差額は明細に調整行として記載されます。
+            </p>
             <SubmitButton variant="outline" className="self-start" pendingText="保存中...">
               内容を訂正する
             </SubmitButton>

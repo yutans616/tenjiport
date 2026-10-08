@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizerContext } from "@/lib/organizer/context";
+import { RESIDUAL_KEY, loadBillingStates } from "@/lib/billing/exhibitorBilling";
 import { createInvoicesBulkAction } from "../actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BulkInvoicePreview, type BulkInvoiceRow } from "./BulkInvoicePreview";
@@ -34,32 +35,35 @@ export default async function BulkInvoicesPage({
     .from("event_participations")
     .select("id, resolved_price_yen, exhibitor_profiles(brand_name)")
     .eq("event_id", eventId)
-    .not("status", "in", "(cancelled,merged)");
+    .not("status", "in", "(cancelled,merged)")
+    .order("created_at", { ascending: true });
 
-  const participationIds = (participations ?? []).map((p) => p.id);
-  const { data: existingInvoices } =
-    participationIds.length > 0
-      ? await supabase.from("exhibitor_invoices").select("event_participation_id").in("event_participation_id", participationIds)
-      : { data: [] };
-  const hasInvoiceSet = new Set((existingInvoices ?? []).map((i) => i.event_participation_id));
+  const { pricedFields, states } = await loadBillingStates(supabase, eventId, participations ?? []);
 
   const rows: BulkInvoiceRow[] = (participations ?? []).map((p) => {
     const profile = Array.isArray(p.exhibitor_profiles) ? p.exhibitor_profiles[0] : p.exhibitor_profiles;
+    const state = states.get(p.id)!;
     return {
       id: p.id,
       brandName: profile?.brand_name ?? "（未設定）",
-      resolvedPriceYen: p.resolved_price_yen,
-      hasInvoice: hasInvoiceSet.has(p.id),
+      unbilledItems: state.unbilledItems,
+      invoicedTotal: state.invoicedTotal,
+      hasUnitemizedInvoice: state.hasUnitemizedInvoice,
+      hasManualInvoice: state.hasManualInvoice,
+      hasPrice: state.currentItems.length > 0,
     };
   });
 
-  const createInvoicesBulkWithId = createInvoicesBulkAction.bind(null, eventId);
+  const fieldOptions = pricedFields.map((f) => ({ key: f.key, label: f.label }));
+  if (rows.some((r) => r.unbilledItems.some((i) => i.field_key === RESIDUAL_KEY))) {
+    fieldOptions.push({ key: RESIDUAL_KEY, label: pricedFields.length > 0 ? "その他（確定金額との差額）" : "出展料" });
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
       <h1 className="text-xl font-semibold tracking-tight">請求書を一括発行</h1>
       <p className="text-sm text-muted-foreground">
-        フォームの選択内容から自動計算された金額（コマ料金等）に基づいて発行します。金額が未設定、または既に請求書が発行済みの出展者は対象外です。
+        フォームの選択内容（ブース・オプション品など）のうち、まだ請求していない品目をまとめて請求します。既に請求書がある出展者にも、未請求の品目があれば追加の請求書を発行します。「請求する項目」で、出展料だけ先に請求し、オプション品は後から請求する、といった使い分けができます。
       </p>
 
       {rows.length === 0 ? (
@@ -72,7 +76,7 @@ export default async function BulkInvoicesPage({
             <CardTitle className="text-base">発行内容</CardTitle>
           </CardHeader>
           <CardContent>
-            <BulkInvoicePreview rows={rows} action={createInvoicesBulkWithId} />
+            <BulkInvoicePreview rows={rows} fieldOptions={fieldOptions} action={createInvoicesBulkAction.bind(null, eventId)} />
           </CardContent>
         </Card>
       )}

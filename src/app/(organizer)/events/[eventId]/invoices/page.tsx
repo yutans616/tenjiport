@@ -10,6 +10,7 @@ import { SuccessBanner } from "@/components/organizer/success-banner";
 import { SubmitButton } from "@/components/organizer/submit-button";
 import { cn } from "@/lib/utils";
 import { remindUnpaidInvoicesBulkAction } from "./actions";
+import { formatLineItemsSummary, parseLineItems } from "@/lib/billing/exhibitorBilling";
 
 const PAYMENT_FILTERS = [
   { value: "all", label: "すべて" },
@@ -23,10 +24,10 @@ export default async function InvoicesPage({
   searchParams,
 }: {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ done?: string; count?: string; payment?: string }>;
+  searchParams: Promise<{ done?: string; count?: string; skipped?: string; payment?: string }>;
 }) {
   const { eventId } = await params;
-  const { done, count, payment } = await searchParams;
+  const { done, count, skipped, payment } = await searchParams;
   const filter: PaymentFilter = payment === "unpaid" || payment === "paid" ? payment : "all";
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
@@ -57,7 +58,7 @@ export default async function InvoicesPage({
 
   const { data: invoices } = await supabase
     .from("exhibitor_invoices")
-    .select("id, event_participation_id, amount_yen, due_date, invoice_ack_status, payment_status, created_at")
+    .select("id, invoice_number, event_participation_id, amount_yen, due_date, invoice_ack_status, payment_status, line_items_json, created_at")
     .in("event_participation_id", (participationRows ?? []).map((p) => p.id))
     .order("created_at", { ascending: false });
 
@@ -75,7 +76,7 @@ export default async function InvoicesPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <SuccessBanner done={done} count={count} />
+      <SuccessBanner done={done} count={count} skipped={skipped} />
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-muted-foreground">請求書</h2>
         <div className="flex gap-2">
@@ -148,12 +149,21 @@ export default async function InvoicesPage({
             <Link key={inv.id} href={`/events/${eventId}/invoices/${inv.id}`}>
               <Card className="transition-colors hover:border-primary/40 hover:bg-accent/40">
                 <CardContent className="flex items-center justify-between py-4">
-                  <div>
-                    <p className="font-medium">{brandByParticipation.get(inv.event_participation_id)}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {brandByParticipation.get(inv.event_participation_id)}
+                      {inv.invoice_number && <span className="ml-2 text-xs font-normal text-muted-foreground">{inv.invoice_number}</span>}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       ¥{inv.amount_yen.toLocaleString("ja-JP")}
                       {inv.due_date ? ` ・ 期限: ${inv.due_date}` : ""}
                     </p>
+                    {(() => {
+                      const items = parseLineItems(inv.line_items_json);
+                      return items && items.length > 0 ? (
+                        <p className="truncate text-xs text-muted-foreground">{formatLineItemsSummary(items)}</p>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="flex gap-2">
                     {cancelledParticipationIds.has(inv.event_participation_id) && (
