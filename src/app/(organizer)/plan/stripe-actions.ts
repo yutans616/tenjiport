@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getOrganizerContext } from "@/lib/organizer/context";
+import { BILLING_FORBIDDEN_MESSAGE, canManageBilling, getOrganizerContext } from "@/lib/organizer/context";
 import { createStripeClient } from "@/lib/stripe";
 import { isDemoOrganization } from "@/lib/demo/guard";
 
@@ -11,6 +11,7 @@ import { isDemoOrganization } from "@/lib/demo/guard";
 export async function startCardRegistration() {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
+  if (!canManageBilling(context!.role)) throw new Error(BILLING_FORBIDDEN_MESSAGE);
   // UI上はbilling_exemptにより到達しない想定だが、実Stripe課金を発生させない
   // 二重防御として明示的にブロックする（tenjiport_demo_lp_spec.md 4.3節）。
   if (await isDemoOrganization(context.organizationId)) {

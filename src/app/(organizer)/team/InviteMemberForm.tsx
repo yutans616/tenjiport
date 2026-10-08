@@ -42,8 +42,8 @@ export function InviteMemberForm() {
       <div className="grid gap-1.5">
         <Label htmlFor="role">ロール</Label>
         <NativeSelect id="role" name="role" defaultValue="staff">
-          <option value="admin">管理者（設定・メンバー招待・一括操作を含め、監査ログ以外の全操作）</option>
-          <option value="staff">スタッフ（イベント運営の日常操作。設定・メンバー招待・一括操作は不可）</option>
+          <option value="admin">管理者（設定・プラン課金・メンバー招待・一括操作を含め、監査ログ以外の全操作）</option>
+          <option value="staff">スタッフ（イベント運営の日常操作。設定・プラン課金・メンバー招待・一括操作は不可）</option>
         </NativeSelect>
       </div>
 

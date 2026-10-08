@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getOrganizerContext } from "@/lib/organizer/context";
+import { canManageBilling, getOrganizerContext } from "@/lib/organizer/context";
 import { createStripeClient } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,7 @@ export default async function StripeSetupSuccessPage({
   const { session_id: sessionId } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
-  if (!sessionId) redirect("/plan");
+  if (!sessionId || !canManageBilling(context.role)) redirect("/plan");
 
   const stripe = createStripeClient();
   const session = await stripe.checkout.sessions.retrieve(sessionId, {

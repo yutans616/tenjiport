@@ -4,6 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export const ACTIVE_ORG_COOKIE = "active_organization_id";
 
+// プラン・課金（プランの開始・変更、カード登録、年間プランの支払い、利用料の再課金）は
+// オーナー・管理者のみ。DB側の関数でも同じ判定をしている（migrations/0075）。
+export function canManageBilling(role: OrganizerContext["role"]): boolean {
+  return role === "owner" || role === "admin";
+}
+
+export const BILLING_FORBIDDEN_MESSAGE = "プラン・課金の操作はオーナー・管理者のみ行えます。";
+
 export type OrganizerContext = {
   userId: string;
   email: string | null;

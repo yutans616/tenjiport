@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { getOrganizerContext } from "@/lib/organizer/context";
+import { BILLING_FORBIDDEN_MESSAGE, canManageBilling, getOrganizerContext } from "@/lib/organizer/context";
 import { attemptCharge, type ServiceInvoiceRow } from "@/lib/billing/runEventBilling";
 import { generateAndAttachServiceInvoicePdf } from "@/lib/billing/generateServiceInvoiceDocument";
 
@@ -110,6 +110,7 @@ async function requireCardOnFile(organizationId: string, supabase: Awaited<Retur
 export async function startStandardPlanAction() {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
+  if (!canManageBilling(context!.role)) throw new Error(BILLING_FORBIDDEN_MESSAGE);
 
   const supabase = await createClient();
   const { data: pricing } = await supabase
@@ -147,6 +148,7 @@ async function requireAnnualPlanOffer(organizationId: string, supabase: Awaited<
 export async function startAnnualPlanAction(billingMethod: BillingMethod) {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
+  if (!canManageBilling(context!.role)) throw new Error(BILLING_FORBIDDEN_MESSAGE);
 
   const supabase = await createClient();
   const annualPlanConfigId = await requireAnnualPlanOffer(context.organizationId, supabase);
@@ -185,6 +187,7 @@ export async function startAnnualPlanAction(billingMethod: BillingMethod) {
 export async function changeToAnnualPlanAction(billingMethod: BillingMethod) {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
+  if (!canManageBilling(context!.role)) throw new Error(BILLING_FORBIDDEN_MESSAGE);
 
   const supabase = await createClient();
   const annualPlanConfigId = await requireAnnualPlanOffer(context.organizationId, supabase);
@@ -223,6 +226,7 @@ export async function changeToAnnualPlanAction(billingMethod: BillingMethod) {
 export async function changeToStandardPlanAction() {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
+  if (!canManageBilling(context!.role)) throw new Error(BILLING_FORBIDDEN_MESSAGE);
 
   const supabase = await createClient();
   const { data: pricing } = await supabase
@@ -249,6 +253,7 @@ export async function changeToStandardPlanAction() {
 export async function retryServiceInvoiceAction(invoiceId: string) {
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
+  if (!canManageBilling(context!.role)) throw new Error(BILLING_FORBIDDEN_MESSAGE);
 
   const supabase = await createClient();
   const { data: invoice } = await supabase

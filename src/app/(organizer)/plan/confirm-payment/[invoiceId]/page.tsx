@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getOrganizerContext } from "@/lib/organizer/context";
+import { canManageBilling, getOrganizerContext } from "@/lib/organizer/context";
 import { createStripeClient } from "@/lib/stripe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmPaymentForm } from "./ConfirmPaymentForm";
@@ -18,6 +18,7 @@ export default async function ConfirmPaymentPage({
   const { invoiceId } = await params;
   const context = await getOrganizerContext();
   if (!context) redirect("/login");
+  if (!canManageBilling(context.role)) redirect("/plan");
 
   const supabase = await createClient();
   const { data: invoice } = await supabase

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getOrganizerContext } from "@/lib/organizer/context";
+import { canManageBilling, getOrganizerContext } from "@/lib/organizer/context";
 import {
   changeToAnnualPlanAction,
   changeToStandardPlanAction,
@@ -133,6 +133,19 @@ export default async function PlanPage({
   const { billingError } = await searchParams;
   const context = await getOrganizerContext();
   if (!context) redirect("/onboard");
+
+  if (!canManageBilling(context.role)) {
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
+        <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">
+            プラン・課金の確認と変更は、オーナー・管理者のみ行えます。お支払い方法の登録やプランの変更が必要な場合は、組織のオーナーまたは管理者にご依頼ください。
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const supabase = await createClient();
 
