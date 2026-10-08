@@ -8,7 +8,7 @@ export const demoConfig = {
   signupEnabled: false,
   signupUrl: "/login",
 
-  // 営業PDF（scripts/build-service-guide-pdf.mjs、全11ページ）。
+  // 営業PDF（scripts/build-service-guide-pdf.mjs、初回ご検討用・16:9横型・全21ページ）。
   documentViewUrl: "/demo/tenjiport-service-guide.pdf" as string | null,
   documentDownloadUrl: "/demo/tenjiport-service-guide.pdf" as string | null,
 

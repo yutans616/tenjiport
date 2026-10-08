@@ -310,7 +310,7 @@ export default function DemoLandingPage() {
               <div>
                 <h2 className="text-lg font-semibold text-[#102C50]">社内でのご検討・共有に</h2>
                 <p className="mt-1 text-sm text-[#102C50]/70">
-                  機能、導入の流れ、料金をまとめたサービス資料をご覧いただけます。
+                  機能の詳細、料金、導入の流れ、ご検討チェックリストをまとめたサービス資料（全21ページ）をご覧いただけます。
                 </p>
               </div>
             </div>
