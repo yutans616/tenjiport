@@ -149,7 +149,7 @@ export default async function PlanPage({
         <h1 className="text-xl font-semibold tracking-tight">プラン・課金</h1>
         <Card>
           <CardContent className="py-6 text-sm text-muted-foreground">
-            運営者アカウントのため、この組織は課金対象外です。イベント作成・利用のすべてを無制限にご利用いただけます。
+            この組織は現在、課金対象外に設定されています。イベントの作成を含め、すべての機能を料金なしでご利用いただけます。
           </CardContent>
         </Card>
       </div>

@@ -58,7 +58,7 @@ export default async function AdminOrganizationsPage() {
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     {org.billing_exempt ? (
-                      <Badge variant="secondary">運営者（課金対象外）</Badge>
+                      <Badge variant="secondary">課金対象外</Badge>
                     ) : (
                       <Badge variant={contract ? "default" : "outline"}>
                         {contract ? PLAN_LABEL[contract.plan_type] ?? contract.plan_type : "契約なし"}
