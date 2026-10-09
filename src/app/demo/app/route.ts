@@ -10,6 +10,9 @@ import { silentSignIn } from "@/lib/demo/session";
 // メール送信なしでその組織の主催者アカウントへサインインしたうえで実アプリの
 // 主催者側画面（/events以下）へそのまま遷移する。登録・メール入力は不要。
 export async function GET(request: NextRequest) {
+  // リンクの先読み（Next.jsのprefetch）ではデモ組織を発行しない。
+  if (request.headers.get("next-router-prefetch")) return new Response(null, { status: 204 });
+
   const cookieToken = request.cookies.get(DEMO_SESSION_COOKIE)?.value;
   const session = await getOrCreateDemoSession(cookieToken);
 

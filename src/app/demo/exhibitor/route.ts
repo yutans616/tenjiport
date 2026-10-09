@@ -11,6 +11,9 @@ import { silentSignIn, getDemoEventForOrganization } from "@/lib/demo/session";
 // デモ専用の出展者固定アカウントへサインインし、実際の応募URL（apply/[token]）と
 // 同じ画面へ遷移する。既にログイン済みの状態でアクセスするため、メール確認手順は発生しない。
 export async function GET(request: NextRequest) {
+  // リンクの先読み（Next.jsのprefetch）ではデモ組織を発行しない。
+  if (request.headers.get("next-router-prefetch")) return new Response(null, { status: 204 });
+
   const cookieToken = request.cookies.get(DEMO_SESSION_COOKIE)?.value;
   const session = await getOrCreateDemoSession(cookieToken);
   const { publicFormToken } = await getDemoEventForOrganization(session.organizationId);

@@ -28,8 +28,10 @@ export function TrackedLink({
     );
   }
 
+  // 先読みしない。/demo/app はアクセスされるとデモ組織を発行するため、表示されただけで
+  // 先読みされると、LPの閲覧のたびにデモ組織が作られてしまう。
   return (
-    <Link href={href} className={className} onClick={handleClick}>
+    <Link href={href} prefetch={false} className={className} onClick={handleClick}>
       {children}
     </Link>
   );

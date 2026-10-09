@@ -91,7 +91,12 @@ export async function deleteEventTree(db: SupabaseClient, eventId: string): Prom
     await db.from("announcements").delete().in("id", announcementIds);
   }
 
+  // 重複登録の検知データは参加を参照するため、参加より先に消す（デモで訪問者が同じ
+  // メールアドレスで複数回応募すると作られ、残っているとイベントごと削除できなくなる）。
+  await db.from("duplicate_flags").delete().eq("event_id", eventId);
+
   if (participationIds.length > 0) {
+    await db.from("announcement_submissions").delete().in("event_participation_id", participationIds);
     await db.from("notification_deliveries").delete().in("event_participation_id", participationIds);
     const { data: invoices } = await db.from("exhibitor_invoices").select("id").in("event_participation_id", participationIds);
     const invoiceIds = (invoices ?? []).map((i: { id: string }) => i.id);
@@ -105,7 +110,10 @@ export async function deleteEventTree(db: SupabaseClient, eventId: string): Prom
     if (submissionIds.length > 0) await db.from("revision_requests").delete().in("submission_version_id", submissionIds);
     await db.from("submission_versions").delete().in("event_participation_id", participationIds);
   }
-  await db.from("event_participations").delete().eq("event_id", eventId);
+  const { error: participationsError } = await db.from("event_participations").delete().eq("event_id", eventId);
+  if (participationsError) {
+    throw new Error(`参加データの削除に失敗しました（event_id=${eventId}）: ${participationsError.message}`);
+  }
 
   const { data: forms } = await db.from("forms").select("id").eq("event_id", eventId);
   const formIds = (forms ?? []).map((f: { id: string }) => f.id);

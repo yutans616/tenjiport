@@ -8,9 +8,11 @@ function yen(n: number) {
 export default async function AdminOverviewPage() {
   const admin = createServiceRoleClient();
 
+  // 営業LPの操作デモで自動発行されるデモ組織は数えない。
   const { count: totalOrgCount } = await admin
     .from("organizer_organizations")
-    .select("id", { count: "exact", head: true });
+    .select("id", { count: "exact", head: true })
+    .eq("is_demo", false);
 
   const { data: activeContracts } = await admin
     .from("service_contracts")

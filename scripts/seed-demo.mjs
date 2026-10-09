@@ -104,7 +104,10 @@ async function deleteEventTree(eventId) {
     await db.from("announcements").delete().in("id", announcementIds);
   }
 
+  await db.from("duplicate_flags").delete().eq("event_id", eventId);
+
   if (participationIds.length > 0) {
+    await db.from("announcement_submissions").delete().in("event_participation_id", participationIds);
     await db.from("notification_deliveries").delete().in("event_participation_id", participationIds);
     await db.from("invoice_change_logs").delete().in(
       "exhibitor_invoice_id",
@@ -117,7 +120,8 @@ async function deleteEventTree(eventId) {
     );
     await db.from("submission_versions").delete().in("event_participation_id", participationIds);
   }
-  await db.from("event_participations").delete().eq("event_id", eventId);
+  const { error: participationsError } = await db.from("event_participations").delete().eq("event_id", eventId);
+  if (participationsError) throw participationsError;
 
   const { data: forms } = await db.from("forms").select("id").eq("event_id", eventId);
   const formIds = (forms ?? []).map((f) => f.id);

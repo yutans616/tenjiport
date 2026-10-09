@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import { after } from "next/server";
+import { recordMemberActivity } from "@/lib/organizer/activity";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMyActiveMemberships, getOrganizerContext } from "@/lib/organizer/context";
@@ -15,6 +17,9 @@ export default async function OrganizerLayout({ children }: { children: React.Re
   if (!context) {
     return <div className="flex min-h-screen flex-col bg-muted/30">{children}</div>;
   }
+
+  // 表示を待たせないよう、レスポンス送信後に記録する。
+  after(() => recordMemberActivity(context.userId, context.organizationId));
 
   // 通常プランはカード登録が必須。未登録の間は/plan以外へのアクセスをブロックする
   // （年間プラン・契約なしの組織には影響しない）。運営者アカウント（billing_exempt）は対象外。
